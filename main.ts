@@ -30,11 +30,11 @@ const functions = mtProtoFunctions.concat(apiFunctions);
 
 let code = `import { id, params, TLObject, Params, TLObjectConstructor, ParamDesc, paramDesc, flags } from "./1_tl_object.ts";
 
-export abstract class Constructor extends TLObject {
+export abstract class Type extends TLObject {
 }
 
 // Uknown type
-export abstract class TypeX extends Constructor {}
+export abstract class TypeX extends Type {}
 `;
 
 const skipIds = [0x1cb5c415, 0xbc799737, 0x997275b5];
@@ -67,7 +67,7 @@ function convertType(type: string, prefix = false) {
   } else {
     type = `Type${revampType(type, true)}`;
     if (prefix) {
-      type = `constructors.${type}`;
+      type = `types.${type}`;
     }
   }
   if (isVector) {
@@ -91,18 +91,18 @@ function getParamDescGetter(params: any[], prefix = false) {
     code += `["${name}", `;
     let type = convertType(param.type, prefix);
     if (param.type.toLowerCase() == "!x") {
-      type = "constructors.TypeX";
+      type = "types.TypeX";
     } else if (type.startsWith("Array")) {
       type = type.split("<")[1].split(">")[0];
       if (
-        !type.replace("constructors.", "").startsWith("Type") &&
+        !type.replace("types.", "").startsWith("Type") &&
         type != "Uint8Array"
       ) {
         type = `"${type}"`;
       }
       type = `[${type}]`;
     } else if (
-      !type.replace("constructors.", "").startsWith("Type") &&
+      !type.replace("types.", "").startsWith("Type") &&
       type != "Uint8Array"
     ) {
       type = `"${type}"`;
@@ -129,18 +129,18 @@ function getParamsGetter(params: any[], prefix = false) {
     const isFlag = param.type.startsWith("flags");
     let type = convertType(param.type, prefix);
     if (param.type.toLowerCase() == "!x") {
-      type = "constructors.TypeX";
+      type = "types.TypeX";
     } else if (type.startsWith("Array")) {
       type = type.split("<")[1].split(">")[0];
       if (
-        !type.replace("constructors.", "").startsWith("Type") &&
+        !type.replace("types.", "").startsWith("Type") &&
         type != "Uint8Array"
       ) {
         type = `"${type}"`;
       }
       type = `[${type}]`;
     } else if (
-      !type.replace("constructors.", "").startsWith("Type") &&
+      !type.replace("types.", "").startsWith("Type") &&
       type != "Uint8Array"
     ) {
       type = `"${type}"`;
@@ -209,7 +209,7 @@ for (const constructor of constructors) {
 
   if (!types.has(className)) {
     code += `
-export abstract class ${className} extends Constructor {
+export abstract class ${className} extends Type {
 }
 `;
     types.add(className);
@@ -225,7 +225,7 @@ for (const constructor of constructors) {
 
   let parent: string;
   if (constructor.predicate.toLowerCase() == constructor.type.toLowerCase()) {
-    parent = "Constructor";
+    parent = "Type";
   } else {
     parent = `Type${revampType(constructor.type, true)}`;
   }
@@ -264,10 +264,10 @@ code += `// deno-lint-ignore no-explicit-any
 ] as const as any);
 `;
 
-Deno.writeTextFileSync("tl/2_constructors.ts", code);
+Deno.writeTextFileSync("tl/2_types.ts", code);
 
 code = `import { id, params, TLObject, Params, paramDesc, ParamDesc, flags } from "./1_tl_object.ts";
-import * as constructors from "./2_constructors.ts";
+import * as types from "./2_types.ts";
 
 export abstract class Function<T> extends TLObject {
   __R: T = Symbol() as unknown as T // virtual member
@@ -300,7 +300,7 @@ for (const function_ of functions) {
       if (!constructorClassNames.has(type)) {
         type = `Type${type}`;
       }
-      type = `constructors.${type}`;
+      type = `types.${type}`;
     }
   }
   if (isVector) {
