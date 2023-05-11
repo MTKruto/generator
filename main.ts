@@ -223,12 +223,7 @@ for (const constructor of constructors) {
     continue;
   }
 
-  let parent: string;
-  if (constructor.predicate.toLowerCase() == constructor.type.toLowerCase()) {
-    parent = "Type";
-  } else {
-    parent = `Type${revampType(constructor.type, true)}`;
-  }
+  const parent = `Type${revampType(constructor.type, true)}`;
 
   const id = revampId(constructor.id);
   const className = revampType(constructor.predicate, true);
