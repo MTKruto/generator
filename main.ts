@@ -37,7 +37,7 @@ export abstract class Type extends TLObject {
 export abstract class TypeX extends Type {}
 `;
 
-const skipIds = [0x1cb5c415, 0xbc799737, 0x997275b5];
+const skipIds = [0x1CB5C415, 0xBC799737, 0x997275B5];
 
 const typeMap: Record<string, string> = {
   "int": "number",
@@ -235,7 +235,7 @@ export class ${className} extends ${parent} {
   ${getPropertiesDeclr(constructor.params)}
     
   protected get [id]() {
-    return ${id}
+    return ${"0x" + id.slice(2).toUpperCase()}
   }
 
   ${getParamDescGetter(constructor.params)}
@@ -310,7 +310,7 @@ export class ${className} extends Function<${type}> {
   ${getPropertiesDeclr(function_.params, true)}
 
   protected get [id]() {
-    return ${id}
+    return ${"0x" + id.slice(2).toUpperCase()}
   }
 
   ${getParamDescGetter(function_.params, true)}
