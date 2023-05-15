@@ -31,5 +31,5 @@ export function revampType(type: string, replaceAbbrs?: boolean) {
 
 export function revampId(id: number) {
   return "0x" + [...bufferFromBigInt(id, 4, false, true)]
-    .map((v) => v.toString(16).padStart(2, "0")).join("");
+    .map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
 }

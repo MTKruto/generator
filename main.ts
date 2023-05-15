@@ -235,7 +235,7 @@ export class ${className} extends ${parent} {
   ${getPropertiesDeclr(constructor.params)}
     
   protected get [id]() {
-    return ${"0x" + id.slice(2).toUpperCase()}
+    return ${id}
   }
 
   ${getParamDescGetter(constructor.params)}
@@ -310,7 +310,7 @@ export class ${className} extends Function<${type}> {
   ${getPropertiesDeclr(function_.params, true)}
 
   protected get [id]() {
-    return ${"0x" + id.slice(2).toUpperCase()}
+    return ${id}
   }
 
   ${getParamDescGetter(function_.params, true)}
