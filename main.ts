@@ -4,6 +4,8 @@ import { revampId, revampType, toCamelCase } from "./utilities.ts";
 
 const apiContent = Deno.readTextFileSync("api.tl");
 
+const layer = apiContent.match(/\/\/ ?LAYER ?(\d+)/i)?.[1];
+
 const mtProtoContent = Deno.readTextFileSync("mtproto.tl");
 
 const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
@@ -323,5 +325,12 @@ export class ${className} extends Function<${type}> {
 }
 
 Deno.writeTextFileSync("tl/3_functions.ts", code);
+
+if (layer) {
+  const constantsContent = Deno.readTextFileSync("constants.ts");
+  Deno.writeTextFileSync("constants.ts", constantsContent.replace(/(const LAYER ?= ?)\d+/, `$1${layer}`));
+} else {
+  console.error("Failed to extract layer from api.tl");
+}
 
 new Deno.Command("deno", { args: ["fmt"] }).outputSync();
