@@ -220,17 +220,20 @@ export abstract class ${className} extends Type {
 
 const entries = new Array<[string, string]>();
 const constructorClassNames = new Set<string>();
+const parentToChildrenRec: Record<string, string[]> = {};
 for (const constructor of constructors) {
   if (skipIds.includes(constructor.id)) {
     continue;
   }
 
   const parent = `Type${revampType(constructor.type, true)}`;
-
   const id = revampId(constructor.id);
   const className = revampType(constructor.predicate, true);
   entries.push([id, className]);
   constructorClassNames.add(className);
+
+  parentToChildrenRec[parent] ??= [];
+  parentToChildrenRec[parent].push(className);
 
   code += `
 export class ${className} extends ${parent} {
@@ -294,9 +297,15 @@ for (const function_ of functions) {
       type = "string";
     } else {
       type = revampType(type, true);
-      if (!constructorClassNames.has(type)) {
-        type = `Type${type}`;
+
+      const parent = `Type${type}`;
+      const children = parentToChildrenRec[parent];
+      if (children?.length != 1) {
+        type = parent;
+      } else {
+        type = children[0]
       }
+
       type = `types.${type}`;
     }
   }
