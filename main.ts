@@ -303,7 +303,7 @@ for (const function_ of functions) {
       if (children?.length != 1) {
         type = parent;
       } else {
-        type = children[0]
+        type = children[0];
       }
 
       type = `types.${type}`;
