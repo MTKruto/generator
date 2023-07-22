@@ -2,11 +2,13 @@
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
 import { revampId, revampType, toCamelCase } from "./utilities.ts";
 
-const apiContent = Deno.readTextFileSync("api.tl");
+const layerContent = await fetch("https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/layer.tl").then((v) => v.text());
 
-const layer = apiContent.match(/\/\/ ?LAYER ?(\d+)/i)?.[1];
+const apiContent = await fetch("https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl").then((v) => v.text());
 
-const mtProtoContent = Deno.readTextFileSync("mtproto.tl");
+import mtProtoContent from "./mtproto_content.ts";
+
+const layer = layerContent.match(/\/\/ ?LAYER ?(\d+)/i)?.[1];
 
 const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
 const { constructors: apiConstructors, functions: apiFunctions } = parse(apiContent);
