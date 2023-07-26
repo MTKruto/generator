@@ -175,19 +175,32 @@ function getPropertiesDeclr(params: any[], prefix = false) {
 
 function getConstructor(params: any[], prefix = false) {
   let code = `constructor(`;
+  let allOptional = false;
 
   if (params.length > 0) {
-    code += `params: {`;
+    let toAppend = "";
+    let flagCount = 0;
     for (const param of params) {
       if (param.name.startsWith("flags") && param.type == "#") {
+        flagCount++;
         continue;
       }
 
       const isFlag = param.type.startsWith("flags");
+      if (isFlag) {
+        flagCount++;
+      }
       const name = toCamelCase(param.name);
       const type = convertType(param.type, prefix);
-      code += `${name}${isFlag ? "?:" : ":"} ${type}, `;
+      toAppend += `${name}${isFlag ? "?:" : ":"} ${type}, `;
     }
+    allOptional = flagCount == params.length
+    if (allOptional) {
+      toAppend = "params?: {" + toAppend;
+    } else {
+      toAppend = "params: {" + toAppend;
+    }
+    code += toAppend;
     code += "}";
   }
   code += ") {\n";
@@ -197,7 +210,7 @@ function getConstructor(params: any[], prefix = false) {
       continue;
     }
     const name = toCamelCase(param.name);
-    code += `this.${name} = params.${name};\n`;
+    code += `this.${name} = params${allOptional ? '?' : ''}.${name};\n`;
   }
   code += "}\n";
   return code;
