@@ -1,6 +1,9 @@
 // deno-lint-ignore-file no-explicit-any
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
+import CodeBlockWriter, { Options } from "https://deno.land/x/code_block_writer@12.0.0/mod.ts";
 import { revampId, revampType, toCamelCase } from "./utilities.ts";
+
+const OPTIONS: Partial<Options> = { indentNumberOfSpaces: 2 };
 
 const layerContent = await fetch("https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/layer.tl").then((v) => v.text());
 
@@ -32,14 +35,25 @@ for (const constructor of mtProtoFunctions) {
 const constructors = mtProtoConstructors.concat(apiConstructors);
 const functions = mtProtoFunctions.concat(apiFunctions);
 
-let code = `import { id, params, TLObject, Params, TLObjectConstructor, ParamDesc, paramDesc, flags } from "./1_tl_object.ts";
+let writer = new CodeBlockWriter(OPTIONS);
 
-export abstract class Type extends TLObject {
-}
+writer.writeLine("// deno-fmt-ignore-file");
 
-// Uknown type
-export abstract class TypeX extends Type {}
-`;
+writer
+  .writeLine('import { id, params, TLObject, Params, TLObjectConstructor, ParamDesc, paramDesc, flags } from "./1_tl_object.ts";')
+  .blankLine();
+
+writer.write("export abstract class Type extends TLObject")
+  .block(() => {
+  })
+  .blankLine();
+
+writer
+  .writeLine("// Unknown type (generic)")
+  .write("export abstract class TypeX extends Type")
+  .block(() => {
+  })
+  .blankLine();
 
 const skipIds = [0x1CB5C415, 0xBC799737, 0x997275B5];
 
@@ -82,82 +96,101 @@ function convertType(type: string, prefix = false) {
 }
 
 function getParamDescGetter(params: any[], prefix = false) {
-  let code = `static get [paramDesc](): ParamDesc {
-    return [\n`;
-  for (const param of params) {
-    if (param.name.startsWith("flags") && param.type == "#") {
-      code += `["${param.name}",`;
-      code += "flags,";
-      code += `"${param.type}"],`;
-      continue;
+  const writer = new CodeBlockWriter(OPTIONS);
+
+  writer.write("static get [paramDesc](): ParamDesc").block(() => {
+    writer.write("return [");
+
+    if (params.length > 0) {
+      writer.newLine();
     }
-    const name = toCamelCase(param.name);
-    code += `["${name}", `;
-    let type = convertType(param.type, prefix);
-    if (param.type.toLowerCase() == "!x") {
-      type = "types.TypeX";
-    } else if (type.startsWith("Array")) {
-      type = type.split("<")[1].split(">")[0];
-      if (
-        !type.replace("types.", "").startsWith("Type") &&
-        type != "Uint8Array"
-      ) {
-        type = `"${type}"`;
+
+    writer.withIndentationLevel(2, () => {
+      for (const param of params) {
+        if (param.name.startsWith("flags") && param.type == "#") {
+          writer.writeLine(`["${param.name}", flags, "${param.type}"],`);
+          continue;
+        }
+        let type = convertType(param.type, prefix);
+        if (param.type.toLowerCase() == "!x") {
+          type = "types.TypeX";
+        } else if (type.startsWith("Array")) {
+          type = type.split("<")[1].split(">")[0];
+          if (
+            !type.replace("types.", "").startsWith("Type") &&
+            type != "Uint8Array"
+          ) {
+            type = `"${type}"`;
+          }
+          type = `[${type}]`;
+        } else if (
+          !type.replace("types.", "").startsWith("Type") &&
+          type != "Uint8Array"
+        ) {
+          type = `"${type}"`;
+        }
+        const name = toCamelCase(param.name);
+
+        writer.writeLine(`["${name}", ${type}, "${param.type}"],`);
       }
-      type = `[${type}]`;
-    } else if (
-      !type.replace("types.", "").startsWith("Type") &&
-      type != "Uint8Array"
-    ) {
-      type = `"${type}"`;
-    }
-    code += `${type}, `;
-    code += `"${param.type}"`;
-    code += "],";
-  }
-  code += "]\n";
-  code += "}\n";
-  return code;
+    });
+
+    writer.write("];");
+  });
+
+  return writer;
 }
 
 function getParamsGetter(params: any[], prefix = false) {
-  let code = `protected get [params](): Params {
-    return [\n`;
-  for (const param of params) {
-    if (param.name.startsWith("flags") && param.type == "#") {
-      code += `["${param.name}",`;
-      code += "flags,";
-      code += `"${param.type}"],`;
-      continue;
+  const writer = new CodeBlockWriter(OPTIONS)
+    .write("protected get [params](): Params");
+
+  writer.block(() => {
+    writer.write("return [");
+
+    if (params.length > 0) {
+      writer.newLine();
     }
-    const isFlag = param.type.startsWith("flags");
-    let type = convertType(param.type, prefix);
-    if (param.type.toLowerCase() == "!x") {
-      type = "types.TypeX";
-    } else if (type.startsWith("Array")) {
-      type = type.split("<")[1].split(">")[0];
-      if (
-        !type.replace("types.", "").startsWith("Type") &&
-        type != "Uint8Array"
-      ) {
-        type = `"${type}"`;
+
+    writer.withIndentationLevel(2, () => {
+      for (const param of params) {
+        if (param.name.startsWith("flags") && param.type == "#") {
+          writer.writeLine(`["${param.name}", flags, "${param.type}"],`);
+          continue;
+        }
+        const isFlag = param.type.startsWith("flags");
+        let type = convertType(param.type, prefix);
+        if (param.type.toLowerCase() == "!x") {
+          type = "types.TypeX";
+        } else if (type.startsWith("Array")) {
+          type = type.split("<")[1].split(">")[0];
+          if (
+            !type.replace("types.", "").startsWith("Type") &&
+            type != "Uint8Array"
+          ) {
+            type = `"${type}"`;
+          }
+          type = `[${type}]`;
+        } else if (
+          !type.replace("types.", "").startsWith("Type") &&
+          type != "Uint8Array"
+        ) {
+          type = `"${type}"`;
+        }
+        const name = toCamelCase(param.name);
+        writer
+          .write(`[this.${name}${isFlag ? " ?? null" : ""}, ${type}, "${param.type}"],`)
+          .newLine();
       }
-      type = `[${type}]`;
-    } else if (
-      !type.replace("types.", "").startsWith("Type") &&
-      type != "Uint8Array"
-    ) {
-      type = `"${type}"`;
-    }
-    const name = toCamelCase(param.name);
-    code += `[this.${name} ${isFlag ? "?? null" : ""}, ${type}, "${param.type}"],\n`;
-  }
-  code += "]\n}\n";
-  return code;
+    });
+    writer.write("];");
+  });
+
+  return writer;
 }
 
 function getPropertiesDeclr(params: any[], prefix = false) {
-  let code = ``;
+  let code = "";
 
   for (const param of params) {
     if (param.name.startsWith("flags") && param.type == "#") {
@@ -167,20 +200,22 @@ function getPropertiesDeclr(params: any[], prefix = false) {
     const isFlag = param.type.startsWith("flags");
     const name = toCamelCase(param.name);
     const type = convertType(param.type, prefix);
-    code += `${name}${isFlag ? "?:" : ":"} ${type}\n`;
+    code += `${name}${isFlag ? "?:" : ":"} ${type};\n`;
   }
 
   return code.trim();
 }
 
 function getConstructor(params: any[], prefix = false) {
-  let code = `constructor(`;
   let allOptional = false;
+
+  const writer = new CodeBlockWriter(OPTIONS)
+    .write("constructor(");
 
   if (params.length > 0) {
     let toAppend = "";
     let flagCount = 0;
-    for (const param of params) {
+    for (const [i, param] of params.entries()) {
       if (param.name.startsWith("flags") && param.type == "#") {
         flagCount++;
         continue;
@@ -192,28 +227,34 @@ function getConstructor(params: any[], prefix = false) {
       }
       const name = toCamelCase(param.name);
       const type = convertType(param.type, prefix);
-      toAppend += `${name}${isFlag ? "?:" : ":"} ${type}, `;
+      toAppend += `${name}${isFlag ? "?:" : ":"} ${type}; `;
+      if (i == params.length - 1) {
+        toAppend = toAppend.slice(0, -2) + " ";
+      }
     }
-    allOptional = flagCount == params.length
+    allOptional = flagCount == params.length;
     if (allOptional) {
-      toAppend = "params?: {" + toAppend;
+      toAppend = "params?: { " + toAppend;
     } else {
-      toAppend = "params: {" + toAppend;
+      toAppend = "params: { " + toAppend;
     }
-    code += toAppend;
-    code += "}";
+    writer
+      .write(toAppend)
+      .write("}");
   }
-  code += ") {\n";
-  code += "super()\n";
-  for (const param of params) {
-    if (param.name.startsWith("flags") && param.type == "#") {
-      continue;
+  writer.write(")");
+  writer.block(() => {
+    writer.writeLine("super();");
+    for (const param of params) {
+      if (param.name.startsWith("flags") && param.type == "#") {
+        continue;
+      }
+      const name = toCamelCase(param.name);
+      writer.write(`this.${name} = params${allOptional ? "?" : ""}.${name};`)
+        .newLine();
     }
-    const name = toCamelCase(param.name);
-    code += `this.${name} = params${allOptional ? '?' : ''}.${name};\n`;
-  }
-  code += "}\n";
-  return code;
+  });
+  return writer;
 }
 
 const types = new Set<string>();
@@ -225,10 +266,10 @@ for (const constructor of constructors) {
   const className = `Type${revampType(constructor.type, true)}`;
 
   if (!types.has(className)) {
-    code += `
-export abstract class ${className} extends Type {
-}
-`;
+    writer
+      .write(`export abstract class ${className} extends Type`)
+      .block()
+      .blankLine();
     types.add(className);
   }
 }
@@ -250,44 +291,63 @@ for (const constructor of constructors) {
   parentToChildrenRec[parent] ??= [];
   parentToChildrenRec[parent].push(className);
 
-  code += `
-export class ${className} extends ${parent} {
-  ${getPropertiesDeclr(constructor.params)}
-    
-  protected get [id]() {
-    return ${id}
-  }
+  writer
+    .write(`export class ${className} extends ${parent}`)
+    .block(() => {
+      if (constructor.params.length > 0) {
+        writer
+          .write(getPropertiesDeclr(constructor.params))
+          .blankLine();
+      }
 
-  ${getParamDescGetter(constructor.params)}
+      writer
+        .write("protected get [id]()")
+        .block(() => {
+          writer.writeLine(`return ${id};`);
+        })
+        .blankLine();
 
-  ${getParamsGetter(constructor.params)}
+      writer
+        .write(getParamDescGetter(constructor.params).toString())
+        .blankLine();
 
-  ${getConstructor(constructor.params)}
+      writer
+        .write(getParamsGetter(constructor.params).toString())
+        .blankLine();
+
+      writer.write(getConstructor(constructor.params).toString());
+    })
+    .blankLine();
 }
-`;
-}
 
-code += `
-export const map = new Map<number, TLObjectConstructor>([
-`;
+writer.writeLine("export const map = new Map<number, TLObjectConstructor>([");
 
 for (const [id, className] of entries) {
-  code += `[${id}, ${className}],\n`;
+  writer
+    .write(`[${id}, ${className}],`)
+    .blankLine();
 }
 
-code += `// deno-lint-ignore no-explicit-any
-] as const as any);
-`;
+writer.writeLine("// deno-lint-ignore no-explicit-any");
+writer.writeLine("] as const as any);");
 
-Deno.writeTextFileSync("tl/2_types.ts", code);
+// Deno.writeTextFileSync("tl/2_types.ts", code);
+Deno.writeTextFileSync("tl/2_types.ts", writer.toString());
 
-code = `import { id, params, TLObject, Params, paramDesc, ParamDesc, flags } from "./1_tl_object.ts";
-import * as types from "./2_types.ts";
+writer = new CodeBlockWriter(OPTIONS);
 
-export abstract class Function<T> extends TLObject {
-  __R: T = Symbol() as unknown as T // virtual member
-}
-`;
+writer.writeLine("// deno-fmt-ignore-file");
+writer.writeLine('import { id, params, TLObject, Params, paramDesc, ParamDesc, flags } from "./1_tl_object.ts";');
+
+writer
+  .writeLine('import * as types from "./2_types.ts";')
+  .blankLine();
+
+writer
+  .write("export abstract class Function<T> extends TLObject").block(() => {
+    writer.writeLine("__R: T = Symbol() as unknown as T; // virtual member");
+  })
+  .blankLine();
 
 for (const function_ of functions) {
   const isGeneric = function_.params.some((v: any) => v.type == "!X");
@@ -331,24 +391,36 @@ for (const function_ of functions) {
     type = 'T["__R"]';
   }
 
-  code += `
-export class ${className} extends Function<${type}> {
-  ${getPropertiesDeclr(function_.params, true)}
+  writer
+    .write(`export class ${className} extends Function<${type}>`)
+    .block(() => {
+      if (function_.params.length > 0) {
+        writer
+          .writeLine(getPropertiesDeclr(function_.params, true))
+          .blankLine();
+      }
 
-  protected get [id]() {
-    return ${id}
-  }
+      writer.write("protected get [id]()")
+        .block(() => {
+          writer.write(`return ${id};`);
+        })
+        .blankLine();
 
-  ${getParamDescGetter(function_.params, true)}
+      writer
+        .write(getParamDescGetter(function_.params, true).toString())
+        .blankLine();
 
-  ${getParamsGetter(function_.params, true)}
+      writer
+        .write(getParamsGetter(function_.params, true).toString())
+        .blankLine();
 
-  ${getConstructor(function_.params, true)}
+      writer
+        .write(getConstructor(function_.params, true).toString());
+    })
+    .blankLine();
 }
-  `;
-}
 
-Deno.writeTextFileSync("tl/3_functions.ts", code);
+Deno.writeTextFileSync("tl/3_functions.ts", writer.toString());
 
 if (layer) {
   const constantsContent = Deno.readTextFileSync("constants.ts");
