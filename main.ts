@@ -69,7 +69,7 @@ const typeMap: Record<string, string> = {
   "int256": "bigint",
   "!x": "T",
 };
-function convertType(type: string, prefix = false) {
+function convertType(type: string, prefix = false, abstract = true) {
   if (type.startsWith("flags")) {
     type = type.split("?").slice(-1)[0];
   }
@@ -84,6 +84,9 @@ function convertType(type: string, prefix = false) {
     type = mapping;
   } else {
     type = `Type${revampType(type, true)}`;
+    if (abstract) {
+      type = `_${type}`;
+    }
     if (prefix) {
       type = `types.${type}`;
     }
@@ -117,14 +120,14 @@ function getParamDescGetter(params: any[], prefix = false) {
         } else if (type.startsWith("Array")) {
           type = type.split("<")[1].split(">")[0];
           if (
-            !type.replace("types.", "").startsWith("Type") &&
+            !type.replace("types.", "").startsWith("_Type") &&
             type != "Uint8Array"
           ) {
             type = `"${type}"`;
           }
           type = `[${type}]`;
         } else if (
-          !type.replace("types.", "").startsWith("Type") &&
+          !type.replace("types.", "").startsWith("_Type") &&
           type != "Uint8Array"
         ) {
           type = `"${type}"`;
@@ -165,14 +168,14 @@ function getParamsGetter(params: any[], prefix = false) {
         } else if (type.startsWith("Array")) {
           type = type.split("<")[1].split(">")[0];
           if (
-            !type.replace("types.", "").startsWith("Type") &&
+            !type.replace("types.", "").startsWith("_Type") &&
             type != "Uint8Array"
           ) {
             type = `"${type}"`;
           }
           type = `[${type}]`;
         } else if (
-          !type.replace("types.", "").startsWith("Type") &&
+          !type.replace("types.", "").startsWith("_Type") &&
           type != "Uint8Array"
         ) {
           type = `"${type}"`;
@@ -199,7 +202,7 @@ function getPropertiesDeclr(params: any[], prefix = false) {
 
     const isFlag = param.type.startsWith("flags");
     const name = toCamelCase(param.name);
-    const type = convertType(param.type, prefix);
+    const type = convertType(param.type, prefix, false);
     code += `${name}${isFlag ? "?:" : ":"} ${type};\n`;
   }
 
@@ -226,7 +229,7 @@ function getConstructor(params: any[], prefix = false) {
         flagCount++;
       }
       const name = toCamelCase(param.name);
-      const type = convertType(param.type, prefix);
+      const type = convertType(param.type, prefix, false);
       toAppend += `${name}${isFlag ? "?:" : ":"} ${type}; `;
       if (i == params.length - 1) {
         toAppend = toAppend.slice(0, -2) + " ";
@@ -263,7 +266,7 @@ for (const constructor of constructors) {
     continue;
   }
 
-  const className = `Type${revampType(constructor.type, true)}`;
+  const className = `_Type${revampType(constructor.type, true)}`;
 
   if (!types.has(className)) {
     writer
@@ -282,7 +285,7 @@ for (const constructor of constructors) {
     continue;
   }
 
-  const parent = `Type${revampType(constructor.type, true)}`;
+  const parent = `_Type${revampType(constructor.type, true)}`;
   const id = revampId(constructor.id);
   const className = revampType(constructor.predicate, true);
   entries.push([id, className]);
@@ -320,11 +323,16 @@ for (const constructor of constructors) {
     .blankLine();
 }
 
+for (const [parent, children] of Object.entries(parentToChildrenRec)) {
+  writer.writeLine(`export type ${parent.slice(1)} = ${children.join(" | ")};`);
+}
+
+writer.blankLine();
+
 writer.writeLine("export const map = new Map<number, TLObjectConstructor>([");
 
 for (const [id, className] of entries) {
-  writer
-    .write(`[${id}, ${className}],`)
+  writer.write(`[${id}, ${className}],`)
     .blankLine();
 }
 
