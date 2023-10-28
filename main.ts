@@ -332,8 +332,7 @@ writer.blankLine();
 writer.writeLine("export const map = new Map<number, TLObjectConstructor>([");
 
 for (const [id, className] of entries) {
-  writer.write(`[${id}, ${className}],`)
-    .blankLine();
+  writer.writeLine(`  [${id}, ${className}],`);
 }
 
 writer.writeLine("// deno-lint-ignore no-explicit-any");
@@ -431,8 +430,8 @@ for (const function_ of functions) {
 Deno.writeTextFileSync("tl/3_functions.ts", writer.toString());
 
 if (layer) {
-  const constantsContent = Deno.readTextFileSync("constants.ts");
-  Deno.writeTextFileSync("constants.ts", constantsContent.replace(/(const LAYER ?= ?)\d+/, `$1${layer}`));
+  const constantsContent = Deno.readTextFileSync("4_constants.ts");
+  Deno.writeTextFileSync("4_constants.ts", constantsContent.replace(/(const LAYER ?= ?)\d+/, `$1${layer}`));
 } else {
   console.error("Failed to extract layer from api.tl");
 }
