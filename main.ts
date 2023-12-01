@@ -1,20 +1,24 @@
 // deno-lint-ignore-file no-explicit-any
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
 import CodeBlockWriter, { Options } from "https://deno.land/x/code_block_writer@12.0.0/mod.ts";
-import { revampId, revampType, toCamelCase } from "./utilities.ts";
+import { revampId, revampType } from "./utilities.ts";
 
 const OPTIONS: Partial<Options> = { indentNumberOfSpaces: 2 };
 
-const layerContent = await fetch("https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/layer.tl").then((v) => v.text());
+// const apiContent = await fetch(
+//   "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl",
+// ).then((v) => v.text());
 
-const apiContent = await fetch("https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl").then((v) => v.text());
+const apiContent = Deno.readTextFileSync("../generator/api.tl");
 
 import mtProtoContent from "./mtproto_content.ts";
 
-const layer = layerContent.match(/\/\/ ?LAYER ?(\d+)/i)?.[1];
+const layer = apiContent.match(/\/\/ ?LAYER ?(\d+)/i)?.[1];
 
 const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
-const { constructors: apiConstructors, functions: apiFunctions } = parse(apiContent);
+const { constructors: apiConstructors, functions: apiFunctions } = parse(
+  apiContent,
+);
 
 // for (const constructor of mtProtoConstructors) {
 //   for (const param of constructor.params) {
@@ -40,7 +44,9 @@ let writer = new CodeBlockWriter(OPTIONS);
 writer.writeLine("// deno-fmt-ignore-file");
 
 writer
-  .writeLine('import { id, params, TLObject, Params, TLObjectConstructor, ParamDesc, paramDesc, flags } from "./1_tl_object.ts";')
+  .writeLine(
+    'import { id, params, TLObject, Params, TLObjectConstructor, ParamDesc, paramDesc, flags } from "./1_tl_object.ts";',
+  )
   .blankLine();
 
 writer.write("export abstract class Type extends TLObject")
@@ -69,7 +75,7 @@ const typeMap: Record<string, string> = {
   "int256": "bigint",
   "!x": "T",
 };
-function convertType(type: string, prefix = false, abstract = true) {
+function convertType(type: string, prefix = "", abstract = true) {
   if (type.startsWith("flags")) {
     type = type.split("?").slice(-1)[0];
   }
@@ -83,12 +89,12 @@ function convertType(type: string, prefix = false, abstract = true) {
   if (mapping != undefined) {
     type = mapping;
   } else {
-    type = `Type${revampType(type, true)}`;
+    type = `${revampType(type)}`;
     if (abstract) {
       type = `_${type}`;
     }
     if (prefix) {
-      type = `types.${type}`;
+      type = `${prefix}${type}`;
     }
   }
   if (isVector) {
@@ -98,7 +104,7 @@ function convertType(type: string, prefix = false, abstract = true) {
   }
 }
 
-function getParamDescGetter(params: any[], prefix = false) {
+function getParamDescGetter(params: any[], prefix?: string) {
   const writer = new CodeBlockWriter(OPTIONS);
 
   writer.write("static get [paramDesc](): ParamDesc").block(() => {
@@ -120,19 +126,19 @@ function getParamDescGetter(params: any[], prefix = false) {
         } else if (type.startsWith("Array")) {
           type = type.split("<")[1].split(">")[0];
           if (
-            !type.replace("types.", "").startsWith("_Type") &&
+            !type.replace("types.", "").startsWith("_") &&
             type != "Uint8Array"
           ) {
             type = `"${type}"`;
           }
           type = `[${type}]`;
         } else if (
-          !type.replace("types.", "").startsWith("_Type") &&
+          !type.replace("types.", "").startsWith("_") &&
           type != "Uint8Array"
         ) {
           type = `"${type}"`;
         }
-        const name = toCamelCase(param.name);
+        const name = param.name;
 
         writer.writeLine(`["${name}", ${type}, "${param.type}"],`);
       }
@@ -144,7 +150,7 @@ function getParamDescGetter(params: any[], prefix = false) {
   return writer;
 }
 
-function getParamsGetter(params: any[], prefix = false) {
+function getParamsGetter(params: any[], prefix = "") {
   const writer = new CodeBlockWriter(OPTIONS)
     .write("protected get [params](): Params");
 
@@ -168,21 +174,23 @@ function getParamsGetter(params: any[], prefix = false) {
         } else if (type.startsWith("Array")) {
           type = type.split("<")[1].split(">")[0];
           if (
-            !type.replace("types.", "").startsWith("_Type") &&
+            !type.replace(prefix, "").startsWith("_") &&
             type != "Uint8Array"
           ) {
             type = `"${type}"`;
           }
           type = `[${type}]`;
         } else if (
-          !type.replace("types.", "").startsWith("_Type") &&
+          !type.replace(prefix, "").startsWith("_") &&
           type != "Uint8Array"
         ) {
           type = `"${type}"`;
         }
-        const name = toCamelCase(param.name);
+        const name = param.name;
         writer
-          .write(`[this.${name}${isFlag ? " ?? null" : ""}, ${type}, "${param.type}"],`)
+          .write(
+            `[this.${name}${isFlag ? " ?? null" : ""}, ${type}, "${param.type}"],`,
+          )
           .newLine();
       }
     });
@@ -192,7 +200,7 @@ function getParamsGetter(params: any[], prefix = false) {
   return writer;
 }
 
-function getPropertiesDeclr(params: any[], prefix = false) {
+function getPropertiesDeclr(params: any[], prefix?: string) {
   let code = "";
 
   for (const param of params) {
@@ -201,7 +209,7 @@ function getPropertiesDeclr(params: any[], prefix = false) {
     }
 
     const isFlag = param.type.startsWith("flags");
-    const name = toCamelCase(param.name);
+    const name = param.name;
     const type = convertType(param.type, prefix, false);
     code += `${name}${isFlag ? "?:" : ":"} ${type};\n`;
   }
@@ -209,7 +217,7 @@ function getPropertiesDeclr(params: any[], prefix = false) {
   return code.trim();
 }
 
-function getConstructor(params: any[], prefix = false) {
+function getConstructor(params: any[], prefix?: string) {
   let allOptional = false;
 
   const writer = new CodeBlockWriter(OPTIONS)
@@ -228,7 +236,7 @@ function getConstructor(params: any[], prefix = false) {
       if (isFlag) {
         flagCount++;
       }
-      const name = toCamelCase(param.name);
+      const name = param.name;
       const type = convertType(param.type, prefix, false);
       toAppend += `${name}${isFlag ? "?:" : ":"} ${type}; `;
       if (i == params.length - 1) {
@@ -252,7 +260,7 @@ function getConstructor(params: any[], prefix = false) {
       if (param.name.startsWith("flags") && param.type == "#") {
         continue;
       }
-      const name = toCamelCase(param.name);
+      const name = param.name;
       writer.write(`this.${name} = params${allOptional ? "?" : ""}.${name};`)
         .newLine();
     }
@@ -266,7 +274,7 @@ for (const constructor of constructors) {
     continue;
   }
 
-  const className = `_Type${revampType(constructor.type, true)}`;
+  const className = `_${revampType(constructor.type)}`;
 
   if (!types.has(className)) {
     writer
@@ -280,14 +288,23 @@ for (const constructor of constructors) {
 const entries = new Array<[string, string]>();
 const constructorClassNames = new Set<string>();
 const parentToChildrenRec: Record<string, string[]> = {};
+const typeNamespaces = new Set<string>();
+
 for (const constructor of constructors) {
   if (skipIds.includes(constructor.id)) {
     continue;
   }
 
-  const parent = `_Type${revampType(constructor.type, true)}`;
+  if (constructor.type.includes(".")) {
+    typeNamespaces.add(constructor.type.split(".", 1)[0]);
+  }
+
+  const parent = `_${revampType(constructor.type)}`;
   const id = revampId(constructor.id);
-  const className = revampType(constructor.predicate, true);
+  let className = revampType(constructor.predicate);
+  if (["null", "true"].includes(className)) {
+    className = `r$${className}`;
+  }
   entries.push([id, className]);
   constructorClassNames.add(className);
 
@@ -295,11 +312,12 @@ for (const constructor of constructors) {
   parentToChildrenRec[parent].push(className);
 
   writer
+    // .write(`${constructor.type.includes(".") ? "" : "export "}class ${className} extends ${parent}`)
     .write(`export class ${className} extends ${parent}`)
     .block(() => {
       if (constructor.params.length > 0) {
         writer
-          .write(getPropertiesDeclr(constructor.params))
+          .write(getPropertiesDeclr(constructor.params, 'enums.'))
           .blankLine();
       }
 
@@ -318,16 +336,16 @@ for (const constructor of constructors) {
         .write(getParamsGetter(constructor.params).toString())
         .blankLine();
 
-      writer.write(getConstructor(constructor.params).toString());
+      writer.write(getConstructor(constructor.params, 'enums.').toString());
     })
     .blankLine();
 }
 
-for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-  writer.writeLine(`export type ${parent.slice(1)} = ${children.join(" | ")};`);
-}
-
-writer.blankLine();
+writer.write("export declare namespace enums").block(() => {
+  for (const [parent, children] of Object.entries(parentToChildrenRec)) {
+    writer.writeLine(`export type ${parent.slice(1)} = ${children.map((v) => v).join(" | ")};`);
+  }
+});
 
 writer.writeLine("export const map = new Map<number, TLObjectConstructor>([");
 
@@ -344,10 +362,13 @@ Deno.writeTextFileSync("tl/2_types.ts", writer.toString());
 writer = new CodeBlockWriter(OPTIONS);
 
 writer.writeLine("// deno-fmt-ignore-file");
-writer.writeLine('import { id, params, TLObject, Params, paramDesc, ParamDesc, flags } from "./1_tl_object.ts";');
+writer.writeLine(
+  'import { id, params, TLObject, Params, paramDesc, ParamDesc, flags } from "./1_tl_object.ts";',
+);
 
 writer
   .writeLine('import * as types from "./2_types.ts";')
+  .writeLine('import { enums } from "./2_types.ts";')
   .blankLine();
 
 writer
@@ -356,9 +377,14 @@ writer
   })
   .blankLine();
 
+const functionNamespaces = new Set<string>();
 for (const function_ of functions) {
+  if (function_.func.includes(".")) {
+    functionNamespaces.add(function_.func.split(".", 1)[0]);
+  }
+
   const isGeneric = function_.params.some((v: any) => v.type == "!X");
-  let className = revampType(function_.func, true);
+  let className = revampType(function_.func);
   if (isGeneric) {
     className += "<T extends Function<unknown>>";
   }
@@ -378,9 +404,9 @@ for (const function_ of functions) {
     } else if (type.toLowerCase() == "string") {
       type = "string";
     } else {
-      type = revampType(type, true);
+      type = revampType(type);
 
-      const parent = `Type${type}`;
+      const parent = `${type}`;
       const children = parentToChildrenRec[parent];
       if (children?.length != 1) {
         type = parent;
@@ -388,7 +414,7 @@ for (const function_ of functions) {
         type = children[0];
       }
 
-      type = `types.${type}`;
+      type = `enums.${type}`;
     }
   }
   if (isVector) {
@@ -399,11 +425,11 @@ for (const function_ of functions) {
   }
 
   writer
-    .write(`export class ${className} extends Function<${type}>`)
+    .write(`${function_.func.includes(".") ? "" : "export "}class ${className} extends Function<${type}>`)
     .block(() => {
       if (function_.params.length > 0) {
         writer
-          .writeLine(getPropertiesDeclr(function_.params, true))
+          .writeLine(getPropertiesDeclr(function_.params, "enums."))
           .blankLine();
       }
 
@@ -414,16 +440,33 @@ for (const function_ of functions) {
         .blankLine();
 
       writer
-        .write(getParamDescGetter(function_.params, true).toString())
+        .write(getParamDescGetter(function_.params, "types.").toString())
         .blankLine();
 
       writer
-        .write(getParamsGetter(function_.params, true).toString())
+        .write(getParamsGetter(function_.params, "types.").toString())
         .blankLine();
 
       writer
-        .write(getConstructor(function_.params, true).toString());
+        .write(getConstructor(function_.params, "enums.").toString());
     })
+    .blankLine();
+}
+
+for (const ns of functionNamespaces) {
+  writer
+    .write(`export const ${ns} = {`)
+    .indent(() => {
+      for (const { func } of functions) {
+        const ns_ = func.split(".", 1)[0];
+        if (ns_ != ns) {
+          continue;
+        }
+        const name = func.split(".", 2)[1];
+        writer.writeLine(`${name}: ${ns}_${name},`);
+      }
+    })
+    .write("};")
     .blankLine();
 }
 
@@ -431,7 +474,10 @@ Deno.writeTextFileSync("tl/3_functions.ts", writer.toString());
 
 if (layer) {
   const constantsContent = Deno.readTextFileSync("4_constants.ts");
-  Deno.writeTextFileSync("4_constants.ts", constantsContent.replace(/(const LAYER ?= ?)\d+/, `$1${layer}`));
+  Deno.writeTextFileSync(
+    "4_constants.ts",
+    constantsContent.replace(/(const LAYER ?= ?)\d+/, `$1${layer}`),
+  );
 } else {
   console.error("Failed to extract layer from api.tl");
 }
