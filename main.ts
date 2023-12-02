@@ -49,14 +49,14 @@ writer
   )
   .blankLine();
 
-writer.write("export abstract class Type extends TLObject")
+writer.write("abstract class Type extends TLObject")
   .block(() => {
   })
   .blankLine();
 
 writer
   .writeLine("// Unknown type (generic)")
-  .write("export abstract class TypeX extends Type")
+  .write("abstract class TypeX extends Type")
   .block(() => {
   })
   .blankLine();
@@ -75,7 +75,8 @@ const typeMap: Record<string, string> = {
   "int256": "bigint",
   "!x": "T",
 };
-function convertType(type: string, prefix = "", abstract = true) {
+
+function convertType(type: string, prefix = "", abstract = true, ns = false) {
   if (type.startsWith("flags")) {
     type = type.split("?").slice(-1)[0];
   }
@@ -89,7 +90,7 @@ function convertType(type: string, prefix = "", abstract = true) {
   if (mapping != undefined) {
     type = mapping;
   } else {
-    type = `${revampType(type)}`;
+    type = revampType(type, ns);
     if (abstract) {
       type = `_${type}`;
     }
@@ -120,20 +121,20 @@ function getParamDescGetter(params: any[], prefix?: string) {
           writer.writeLine(`["${param.name}", flags, "${param.type}"],`);
           continue;
         }
-        let type = convertType(param.type, prefix);
+        let type = convertType(param.type, prefix, undefined);
         if (param.type.toLowerCase() == "!x") {
-          type = "types.TypeX";
+          type = 'types["TypeX"]';
         } else if (type.startsWith("Array")) {
           type = type.split("<")[1].split(">")[0];
           if (
-            !type.replace("types.", "").startsWith("_") &&
+            (!type.replace("types.", "").startsWith("_")) &&
             type != "Uint8Array"
           ) {
             type = `"${type}"`;
           }
           type = `[${type}]`;
         } else if (
-          !type.replace("types.", "").startsWith("_") &&
+          (!type.replace("types.", "").startsWith("_")) &&
           type != "Uint8Array"
         ) {
           type = `"${type}"`;
@@ -174,14 +175,14 @@ function getParamsGetter(params: any[], prefix = "") {
         } else if (type.startsWith("Array")) {
           type = type.split("<")[1].split(">")[0];
           if (
-            !type.replace(prefix, "").startsWith("_") &&
+            (!type.replace(prefix, "").startsWith("_")) &&
             type != "Uint8Array"
           ) {
             type = `"${type}"`;
           }
           type = `[${type}]`;
         } else if (
-          !type.replace(prefix, "").startsWith("_") &&
+          (!type.replace(prefix, "").startsWith("_")) &&
           type != "Uint8Array"
         ) {
           type = `"${type}"`;
@@ -210,7 +211,7 @@ function getPropertiesDeclr(params: any[], prefix?: string) {
 
     const isFlag = param.type.startsWith("flags");
     const name = param.name;
-    const type = convertType(param.type, prefix, false);
+    const type = convertType(param.type, prefix, false, true);
     code += `${name}${isFlag ? "?:" : ":"} ${type};\n`;
   }
 
@@ -237,7 +238,7 @@ function getConstructor(params: any[], prefix?: string) {
         flagCount++;
       }
       const name = param.name;
-      const type = convertType(param.type, prefix, false);
+      const type = convertType(param.type, prefix, false, true);
       toAppend += `${name}${isFlag ? "?:" : ":"} ${type}; `;
       if (i == params.length - 1) {
         toAppend = toAppend.slice(0, -2) + " ";
@@ -269,16 +270,23 @@ function getConstructor(params: any[], prefix?: string) {
 }
 
 const types = new Set<string>();
+const namespaces = new Set<string>();
+
 for (const constructor of constructors) {
   if (skipIds.includes(constructor.id)) {
     continue;
+  }
+
+  if (constructor.predicate.includes(".")) {
+    const ns = constructor.predicate.split(".", 1)[0];
+    namespaces.add(ns);
   }
 
   const className = `_${revampType(constructor.type)}`;
 
   if (!types.has(className)) {
     writer
-      .write(`export abstract class ${className} extends Type`)
+      .write(`abstract class ${className} extends Type`)
       .block()
       .blankLine();
     types.add(className);
@@ -288,36 +296,27 @@ for (const constructor of constructors) {
 const entries = new Array<[string, string]>();
 const constructorClassNames = new Set<string>();
 const parentToChildrenRec: Record<string, string[]> = {};
-const typeNamespaces = new Set<string>();
 
 for (const constructor of constructors) {
   if (skipIds.includes(constructor.id)) {
     continue;
   }
 
-  if (constructor.type.includes(".")) {
-    typeNamespaces.add(constructor.type.split(".", 1)[0]);
-  }
-
   const parent = `_${revampType(constructor.type)}`;
   const id = revampId(constructor.id);
-  let className = revampType(constructor.predicate);
-  if (["null", "true"].includes(className)) {
-    className = `r$${className}`;
-  }
-  entries.push([id, className]);
+  const className = revampType(constructor.predicate);
+  entries.push([id, parent]);
   constructorClassNames.add(className);
 
   parentToChildrenRec[parent] ??= [];
   parentToChildrenRec[parent].push(className);
 
   writer
-    // .write(`${constructor.type.includes(".") ? "" : "export "}class ${className} extends ${parent}`)
-    .write(`export class ${className} extends ${parent}`)
+    .write(`class ${className} extends ${parent}`)
     .block(() => {
       if (constructor.params.length > 0) {
         writer
-          .write(getPropertiesDeclr(constructor.params, 'enums.'))
+          .write(getPropertiesDeclr(constructor.params, "enums."))
           .blankLine();
       }
 
@@ -336,14 +335,72 @@ for (const constructor of constructors) {
         .write(getParamsGetter(constructor.params).toString())
         .blankLine();
 
-      writer.write(getConstructor(constructor.params, 'enums.').toString());
+      writer.write(getConstructor(constructor.params, "enums.").toString());
     })
     .blankLine();
 }
 
-writer.write("export declare namespace enums").block(() => {
-  for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-    writer.writeLine(`export type ${parent.slice(1)} = ${children.map((v) => v).join(" | ")};`);
+writer.writeLine("export const types = {");
+
+writer.indent(() => {
+  writer.writeLine("Type,");
+  writer.writeLine("TypeX,");
+  for (const constructor of constructors) {
+    if (skipIds.includes(constructor.id)) {
+      continue;
+    }
+    if (constructor.predicate.includes(".")) {
+      continue;
+    }
+    writer.writeLine(`${revampType(constructor.predicate)},`);
+  }
+
+  for (const ns of namespaces) {
+    writer.writeLine(`${ns}: {`);
+    writer.indent(() => {
+      for (const constructor of constructors) {
+        if (skipIds.includes(constructor.id)) {
+          continue;
+        }
+        if (!constructor.predicate.startsWith(ns + ".")) {
+          continue;
+        }
+        writer.writeLine(`${revampType(constructor.predicate.split(".")[1])}: ${revampType(constructor.predicate)},`);
+      }
+    });
+    writer.writeLine("},");
+  }
+});
+
+writer.writeLine("};");
+
+writer.writeLine("export interface types").block(() => {
+  writer.writeLine("Type: Type;");
+  writer.writeLine("TypeX: TypeX;");
+  for (const constructor of constructors) {
+    if (skipIds.includes(constructor.id)) {
+      continue;
+    }
+    if (constructor.predicate.includes(".")) {
+      continue;
+    }
+    writer.writeLine(`${revampType(constructor.predicate)}: ${revampType(constructor.predicate)};`);
+  }
+
+  for (const ns of namespaces) {
+    writer.writeLine(`${ns}: {`);
+    writer.indent(() => {
+      for (const constructor of constructors) {
+        if (skipIds.includes(constructor.id)) {
+          continue;
+        }
+        if (!constructor.predicate.startsWith(ns + ".")) {
+          continue;
+        }
+        writer.writeLine(`${revampType(constructor.predicate.split(".")[1])}: ${revampType(constructor.predicate)};`);
+      }
+    });
+    writer.writeLine("};");
   }
 });
 
@@ -356,7 +413,40 @@ for (const [id, className] of entries) {
 writer.writeLine("// deno-lint-ignore no-explicit-any");
 writer.writeLine("] as const as any);");
 
-// Deno.writeTextFileSync("tl/2_types.ts", code);
+function typeRef(type: string) {
+  for (const ns of namespaces) {
+    if (type.startsWith(ns + "_")) {
+      const ns = type.split("_", 1)[0];
+      const t = type.split("_")[1];
+      return `types["${ns}"]["${t}"]`;
+    }
+  }
+  return `types["${type}"]`;
+}
+
+writer.write("export declare namespace enums").block(() => {
+  for (const [parent, children] of Object.entries(parentToChildrenRec)) {
+    if ([...namespaces].some((v) => parent.startsWith("_" + v))) {
+      continue;
+    }
+    writer.writeLine(`export type ${parent.slice(1)} = ${children.map(typeRef).join(" | ")};`);
+  }
+
+  for (const ns of namespaces.values()) {
+    writer.write("export namespace " + ns).block(() => {
+      for (let [parent, children] of Object.entries(parentToChildrenRec)) {
+        if (!parent.startsWith("_" + ns + "_")) {
+          continue;
+        }
+        parent = parent.split("_")[2];
+        writer.writeLine(`export type ${parent} = ${children.map(typeRef).join(" | ")};`);
+      }
+    });
+  }
+});
+
+writer.newLine()
+
 Deno.writeTextFileSync("tl/2_types.ts", writer.toString());
 
 writer = new CodeBlockWriter(OPTIONS);
@@ -367,8 +457,7 @@ writer.writeLine(
 );
 
 writer
-  .writeLine('import * as types from "./2_types.ts";')
-  .writeLine('import { enums } from "./2_types.ts";')
+  .writeLine('import { types, enums } from "./2_types.ts";')
   .blankLine();
 
 writer
@@ -377,12 +466,7 @@ writer
   })
   .blankLine();
 
-const functionNamespaces = new Set<string>();
 for (const function_ of functions) {
-  if (function_.func.includes(".")) {
-    functionNamespaces.add(function_.func.split(".", 1)[0]);
-  }
-
   const isGeneric = function_.params.some((v: any) => v.type == "!X");
   let className = revampType(function_.func);
   if (isGeneric) {
@@ -425,7 +509,7 @@ for (const function_ of functions) {
   }
 
   writer
-    .write(`${function_.func.includes(".") ? "" : "export "}class ${className} extends Function<${type}>`)
+    .write(`export class ${className} extends Function<${type}>`)
     .block(() => {
       if (function_.params.length > 0) {
         writer
@@ -450,23 +534,6 @@ for (const function_ of functions) {
       writer
         .write(getConstructor(function_.params, "enums.").toString());
     })
-    .blankLine();
-}
-
-for (const ns of functionNamespaces) {
-  writer
-    .write(`export const ${ns} = {`)
-    .indent(() => {
-      for (const { func } of functions) {
-        const ns_ = func.split(".", 1)[0];
-        if (ns_ != ns) {
-          continue;
-        }
-        const name = func.split(".", 2)[1];
-        writer.writeLine(`${name}: ${ns}_${name},`);
-      }
-    })
-    .write("};")
     .blankLine();
 }
 
