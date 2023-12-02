@@ -221,11 +221,10 @@ function getPropertiesDeclr(params: any[], prefix?: string) {
   return code.trim();
 }
 
-function getConstructor(params: any[], prefix?: string) {
+function getConstructorParams(params: any[], prefix?: string) {
   let allOptional = false;
 
-  const writer = new CodeBlockWriter(OPTIONS)
-    .write("constructor(");
+  const writer = new CodeBlockWriter(OPTIONS);
 
   if (params.length > 0) {
     let toAppend = "";
@@ -257,6 +256,16 @@ function getConstructor(params: any[], prefix?: string) {
       .write(toAppend)
       .write("}");
   }
+  return [writer.toString(), allOptional];
+}
+
+function getConstructor(params: any[], prefix?: string) {
+  const writer = new CodeBlockWriter(OPTIONS)
+    .write("constructor(");
+
+  const [params_, allOptional] = getConstructorParams(params, prefix);
+  writer.write(params_.toString());
+
   writer.write(")");
   writer.block(() => {
     writer.writeLine("super();");
@@ -534,6 +543,8 @@ for (const function_ of functions) {
   writer
     .write(`class ${className} extends Function_<${type}>`)
     .block(() => {
+      writer.writeLine(`static __F = Symbol() as unknown as ${isGeneric ? "<T extends Function_<unknown>>" : ""}(${getConstructorParams(function_.params, 'enums.')[0]}) => ${type};`);
+
       if (function_.params.length > 0) {
         writer
           .writeLine(getPropertiesDeclr(function_.params, "enums."))
