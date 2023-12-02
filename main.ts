@@ -282,16 +282,27 @@ function getConstructor(params: any[], prefix?: string) {
 }
 
 const types = new Set<string>();
-const namespaces = new Set<string>();
+const constructorNamespaces = new Set<string>();
+for (const constructor of constructors) {
+  const name = constructor.predicate;
+  if (name.includes(".")) {
+    const ns = name.split(".", 1)[0];
+    constructorNamespaces.add(ns);
+  }
+}
+
+const functionNamespaces = new Set<string>();
+for (const func of functions) {
+  const name = func.func;
+  if (name.includes(".")) {
+    const ns = name.split(".", 1)[0];
+    functionNamespaces.add(ns);
+  }
+}
 
 for (const constructor of constructors) {
   if (skipIds.includes(constructor.id)) {
     continue;
-  }
-
-  if (constructor.predicate.includes(".")) {
-    const ns = constructor.predicate.split(".", 1)[0];
-    namespaces.add(ns);
   }
 
   const className = `_${revampType(constructor.type)}`;
@@ -370,7 +381,7 @@ writer.indent(() => {
     writer.writeLine(`${revampType(constructor.predicate).slice(0, -1)}: ${revampType(constructor.predicate)},`);
   }
 
-  for (const ns of namespaces) {
+  for (const ns of constructorNamespaces) {
     writer.writeLine(`${ns}: {`);
     writer.indent(() => {
       for (const constructor of constructors) {
@@ -405,7 +416,7 @@ writer.write("export declare namespace types").block(() => {
     writer.writeLine(`type ${revampType(constructor.predicate).slice(0, -1)} = ${revampType(constructor.predicate)};`);
   }
 
-  for (const ns of namespaces) {
+  for (const ns of constructorNamespaces) {
     writer.writeLine(`namespace ${ns} {`);
     writer.indent(() => {
       for (const constructor of constructors) {
@@ -431,7 +442,7 @@ for (const [id, className] of entries) {
 writer.writeLine("// deno-lint-ignore no-explicit-any");
 writer.writeLine("] as const as any);");
 function typeRef(s: string) {
-  for (const ns of namespaces) {
+  for (const ns of constructorNamespaces) {
     if (s.startsWith(ns + "_")) {
       const ns = s.split("_", 1)[0];
       const t = s.split("_").slice(1).join("_");
@@ -441,7 +452,7 @@ function typeRef(s: string) {
   return `types.${s.slice(0, -1)}`;
 }
 function enumRef(s: string) {
-  for (const ns of namespaces) {
+  for (const ns of constructorNamespaces) {
     if (s.startsWith(ns + "_")) {
       const ns = s.split("_", 1)[0];
       const t = s.split("_").slice(1).join("_");
@@ -452,7 +463,7 @@ function enumRef(s: string) {
 }
 writer.write("export declare namespace enums").block(() => {
   for (let [parent, children] of Object.entries(parentToChildrenRec)) {
-    if ([...namespaces].some((v) => parent.startsWith("_" + v))) {
+    if ([...constructorNamespaces].some((v) => parent.startsWith("_" + v))) {
       continue;
     }
     if (parent.endsWith("_")) {
@@ -461,7 +472,7 @@ writer.write("export declare namespace enums").block(() => {
     writer.writeLine(`type ${parent.slice(1)} = ${children.map(typeRef).join(" | ")};`);
   }
 
-  for (const ns of namespaces.values()) {
+  for (const ns of constructorNamespaces.values()) {
     writer.write("namespace " + ns).block(() => {
       for (let [parent, children] of Object.entries(parentToChildrenRec)) {
         if (!parent.startsWith("_" + ns + "_")) {
@@ -543,7 +554,7 @@ for (const function_ of functions) {
   writer
     .write(`class ${className} extends Function_<${type}>`)
     .block(() => {
-      writer.writeLine(`static __F = Symbol() as unknown as ${isGeneric ? "<T extends Function_<unknown>>" : ""}(${getConstructorParams(function_.params, 'enums.')[0]}) => ${type};`);
+      writer.writeLine(`static __F = Symbol() as unknown as ${isGeneric ? "<T extends Function_<unknown>>" : ""}(${getConstructorParams(function_.params, "enums.")[0]}) => ${type};`);
 
       if (function_.params.length > 0) {
         writer
@@ -584,7 +595,7 @@ writer.indent(() => {
     writer.writeLine(`${className.slice(0, -1)}: ${className},`);
   }
 
-  for (const ns of namespaces) {
+  for (const ns of functionNamespaces) {
     writer.writeLine(`${ns}: {`);
     writer.indent(() => {
       for (const function_ of functions) {
@@ -612,7 +623,7 @@ writer.write("export declare namespace functions").block(() => {
     writer.writeLine(`type ${className.slice(0, -1)}${isGeneric ? "<T extends Function<unknown>>" : ""} = ${className}${isGeneric ? "<T>" : ""};`);
   }
 
-  for (const ns of namespaces) {
+  for (const ns of functionNamespaces) {
     writer.write(`namespace ${ns}`).block(() => {
       for (const function_ of functions) {
         if (!function_.func.startsWith(ns + ".")) {
