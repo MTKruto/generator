@@ -5,11 +5,11 @@ import { revampId, revampType } from "./utilities.ts";
 
 const OPTIONS: Partial<Options> = { indentNumberOfSpaces: 2 };
 
-// const apiContent = await fetch(
-//   "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl",
-// ).then((v) => v.text());
+const apiContent = await fetch(
+  "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl",
+).then((v) => v.text());
 
-const apiContent = Deno.readTextFileSync("../generator/api.tl");
+// const apiContent = Deno.readTextFileSync("../generator/api.tl");
 
 import mtProtoContent from "./mtproto_content.ts";
 
