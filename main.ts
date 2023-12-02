@@ -49,14 +49,14 @@ writer
   )
   .blankLine();
 
-writer.write("abstract class Type extends TLObject")
+writer.write("abstract class Type_ extends TLObject")
   .block(() => {
   })
   .blankLine();
 
 writer
   .writeLine("// Unknown type (generic)")
-  .write("abstract class TypeX extends Type")
+  .write("abstract class TypeX_ extends Type_")
   .block(() => {
   })
   .blankLine();
@@ -76,7 +76,7 @@ const typeMap: Record<string, string> = {
   "!x": "T",
 };
 
-function convertType(type: string, prefix = "", abstract = true, ns = false) {
+function convertType(type: string, prefix = "", abstract = true, ns = false, underscore = true) {
   if (type.startsWith("flags")) {
     type = type.split("?").slice(-1)[0];
   }
@@ -95,8 +95,11 @@ function convertType(type: string, prefix = "", abstract = true, ns = false) {
       type = `_${type}`;
     }
     if (prefix) {
-      type = `${prefix}${type}`;
+      type = `${prefix}${type.endsWith("_") ? type.slice(0, -1) : type}`;
     }
+  }
+  if (!underscore && type.startsWith("_")) {
+    type = type.slice(1);
   }
   if (isVector) {
     return `Array<${type}>`;
@@ -151,7 +154,7 @@ function getParamDescGetter(params: any[], prefix?: string) {
   return writer;
 }
 
-function getParamsGetter(params: any[], prefix = "") {
+function getParamsGetter(params: any[], prefix = "", underscore?: boolean) {
   const writer = new CodeBlockWriter(OPTIONS)
     .write("protected get [params](): Params");
 
@@ -169,7 +172,7 @@ function getParamsGetter(params: any[], prefix = "") {
           continue;
         }
         const isFlag = param.type.startsWith("flags");
-        let type = convertType(param.type, prefix);
+        let type = convertType(param.type, prefix, undefined, undefined, underscore);
         if (param.type.toLowerCase() == "!x") {
           type = "types.TypeX";
         } else if (type.startsWith("Array")) {
@@ -286,7 +289,7 @@ for (const constructor of constructors) {
 
   if (!types.has(className)) {
     writer
-      .write(`abstract class ${className} extends Type`)
+      .write(`abstract class ${className} extends Type_`)
       .block()
       .blankLine();
     types.add(className);
@@ -343,8 +346,11 @@ for (const constructor of constructors) {
 writer.writeLine("export const types = {");
 
 writer.indent(() => {
-  writer.writeLine("Type,");
-  writer.writeLine("TypeX,");
+  writer.writeLine("Type: Type_,");
+  writer.writeLine("TypeX: TypeX_,");
+  for (const type of types) {
+    writer.writeLine(`${type.slice(0, -1)}: ${type},`);
+  }
   for (const constructor of constructors) {
     if (skipIds.includes(constructor.id)) {
       continue;
@@ -352,7 +358,7 @@ writer.indent(() => {
     if (constructor.predicate.includes(".")) {
       continue;
     }
-    writer.writeLine(`${revampType(constructor.predicate)},`);
+    writer.writeLine(`${revampType(constructor.predicate).slice(0, -1)}: ${revampType(constructor.predicate)},`);
   }
 
   for (const ns of namespaces) {
@@ -365,7 +371,7 @@ writer.indent(() => {
         if (!constructor.predicate.startsWith(ns + ".")) {
           continue;
         }
-        writer.writeLine(`${revampType(constructor.predicate.split(".")[1])}: ${revampType(constructor.predicate)},`);
+        writer.writeLine(`${revampType(constructor.predicate.split(".")[1]).slice(0, -1)}: ${revampType(constructor.predicate)},`);
       }
     });
     writer.writeLine("},");
@@ -374,9 +380,12 @@ writer.indent(() => {
 
 writer.writeLine("};");
 
-writer.writeLine("export interface types").block(() => {
-  writer.writeLine("Type: Type;");
-  writer.writeLine("TypeX: TypeX;");
+writer.write("export declare namespace types").block(() => {
+  writer.writeLine("type Type = Type_;");
+  writer.writeLine("type TypeX = TypeX_;");
+  for (const type of types) {
+    writer.writeLine(`type ${type.slice(0, -1)} = ${type};`);
+  }
   for (const constructor of constructors) {
     if (skipIds.includes(constructor.id)) {
       continue;
@@ -384,11 +393,11 @@ writer.writeLine("export interface types").block(() => {
     if (constructor.predicate.includes(".")) {
       continue;
     }
-    writer.writeLine(`${revampType(constructor.predicate)}: ${revampType(constructor.predicate)};`);
+    writer.writeLine(`type ${revampType(constructor.predicate).slice(0, -1)} = ${revampType(constructor.predicate)};`);
   }
 
   for (const ns of namespaces) {
-    writer.writeLine(`${ns}: {`);
+    writer.writeLine(`namespace ${ns} {`);
     writer.indent(() => {
       for (const constructor of constructors) {
         if (skipIds.includes(constructor.id)) {
@@ -397,10 +406,10 @@ writer.writeLine("export interface types").block(() => {
         if (!constructor.predicate.startsWith(ns + ".")) {
           continue;
         }
-        writer.writeLine(`${revampType(constructor.predicate.split(".")[1])}: ${revampType(constructor.predicate)};`);
+        writer.writeLine(`type ${revampType(constructor.predicate.split(".")[1]).slice(0, -1)} = ${revampType(constructor.predicate)};`);
       }
     });
-    writer.writeLine("};");
+    writer.writeLine("}");
   }
 });
 
@@ -412,40 +421,54 @@ for (const [id, className] of entries) {
 
 writer.writeLine("// deno-lint-ignore no-explicit-any");
 writer.writeLine("] as const as any);");
-
-function typeRef(type: string) {
+function typeRef(s: string) {
   for (const ns of namespaces) {
-    if (type.startsWith(ns + "_")) {
-      const ns = type.split("_", 1)[0];
-      const t = type.split("_")[1];
-      return `types["${ns}"]["${t}"]`;
+    if (s.startsWith(ns + "_")) {
+      const ns = s.split("_", 1)[0];
+      const t = s.split("_").slice(1).join("_");
+      s = ns + "." + t;
     }
   }
-  return `types["${type}"]`;
+  return `types.${s.slice(0, -1)}`;
 }
-
+function enumRef(s: string) {
+  for (const ns of namespaces) {
+    if (s.startsWith(ns + "_")) {
+      const ns = s.split("_", 1)[0];
+      const t = s.split("_").slice(1).join("_");
+      s = ns + "." + t;
+    }
+  }
+  return `enums.${s.slice(0, -1)}`;
+}
 writer.write("export declare namespace enums").block(() => {
-  for (const [parent, children] of Object.entries(parentToChildrenRec)) {
+  for (let [parent, children] of Object.entries(parentToChildrenRec)) {
     if ([...namespaces].some((v) => parent.startsWith("_" + v))) {
       continue;
     }
-    writer.writeLine(`export type ${parent.slice(1)} = ${children.map(typeRef).join(" | ")};`);
+    if (parent.endsWith("_")) {
+      parent = parent.slice(0, -1);
+    }
+    writer.writeLine(`type ${parent.slice(1)} = ${children.map(typeRef).join(" | ")};`);
   }
 
   for (const ns of namespaces.values()) {
-    writer.write("export namespace " + ns).block(() => {
+    writer.write("namespace " + ns).block(() => {
       for (let [parent, children] of Object.entries(parentToChildrenRec)) {
         if (!parent.startsWith("_" + ns + "_")) {
           continue;
         }
         parent = parent.split("_")[2];
-        writer.writeLine(`export type ${parent} = ${children.map(typeRef).join(" | ")};`);
+        if (parent.endsWith("_")) {
+          parent = parent.slice(0, -1);
+        }
+        writer.writeLine(`type ${parent} = ${children.map(typeRef).join(" | ")};`);
       }
     });
   }
 });
 
-writer.newLine()
+writer.newLine();
 
 Deno.writeTextFileSync("tl/2_types.ts", writer.toString());
 
@@ -461,16 +484,16 @@ writer
   .blankLine();
 
 writer
-  .write("export abstract class Function<T> extends TLObject").block(() => {
+  .write("abstract class Function_<T> extends TLObject").block(() => {
     writer.writeLine("__R: T = Symbol() as unknown as T; // virtual member");
   })
   .blankLine();
 
 for (const function_ of functions) {
   const isGeneric = function_.params.some((v: any) => v.type == "!X");
-  let className = revampType(function_.func);
+  let className = revampType(function_.func, undefined, true);
   if (isGeneric) {
-    className += "<T extends Function<unknown>>";
+    className += "<T extends Function_<unknown>>";
   }
   const id = revampId(function_.id);
   let type = function_.type;
@@ -498,7 +521,7 @@ for (const function_ of functions) {
         type = children[0];
       }
 
-      type = `enums.${type}`;
+      type = enumRef(type);
     }
   }
   if (isVector) {
@@ -509,7 +532,7 @@ for (const function_ of functions) {
   }
 
   writer
-    .write(`export class ${className} extends Function<${type}>`)
+    .write(`class ${className} extends Function_<${type}>`)
     .block(() => {
       if (function_.params.length > 0) {
         writer
@@ -528,7 +551,7 @@ for (const function_ of functions) {
         .blankLine();
 
       writer
-        .write(getParamsGetter(function_.params, "types.").toString())
+        .write(getParamsGetter(function_.params, "types.", false).toString())
         .blankLine();
 
       writer
@@ -536,6 +559,62 @@ for (const function_ of functions) {
     })
     .blankLine();
 }
+
+writer.writeLine("export const functions = {");
+
+writer.indent(() => {
+  writer.writeLine("Function: Function_,");
+
+  for (const function_ of functions) {
+    if (function_.func.includes(".")) {
+      continue;
+    }
+    const className = revampType(function_.func, undefined, true);
+    writer.writeLine(`${className.slice(0, -1)}: ${className},`);
+  }
+
+  for (const ns of namespaces) {
+    writer.writeLine(`${ns}: {`);
+    writer.indent(() => {
+      for (const function_ of functions) {
+        if (!function_.func.startsWith(ns + ".")) {
+          continue;
+        }
+        writer.writeLine(`${revampType(function_.func.split(".")[1], undefined, true).slice(0, -1)}: ${revampType(function_.func, undefined, true)},`);
+      }
+    });
+    writer.writeLine("},");
+  }
+});
+
+writer.writeLine("};");
+
+writer.write("export declare namespace functions").block(() => {
+  writer.writeLine("type Function<T> = Function_<T>;");
+
+  for (const function_ of functions) {
+    if (function_.func.includes(".")) {
+      continue;
+    }
+    const className = revampType(function_.func, undefined, true);
+    const isGeneric = function_.params.some((v: any) => v.type == "!X");
+    writer.writeLine(`type ${className.slice(0, -1)}${isGeneric ? "<T extends Function<unknown>>" : ""} = ${className}${isGeneric ? "<T>" : ""};`);
+  }
+
+  for (const ns of namespaces) {
+    writer.write(`namespace ${ns}`).block(() => {
+      for (const function_ of functions) {
+        if (!function_.func.startsWith(ns + ".")) {
+          continue;
+        }
+        const isGeneric = function_.params.some((v: any) => v.type == "!X");
+        writer.writeLine(`type ${revampType(function_.func.split(".")[1], undefined, true).slice(0, -1)}${isGeneric ? "<T extends Function<unknown>>" : ""} = ${revampType(function_.func, undefined, true)}${isGeneric ? "<T>" : ""};`);
+      }
+    });
+  }
+});
+
+writer.newLine();
 
 Deno.writeTextFileSync("tl/3_functions.ts", writer.toString());
 
