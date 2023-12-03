@@ -328,7 +328,7 @@ for (const constructor of constructors) {
   const parent = `_${revampType(constructor.type)}`;
   const id = revampId(constructor.id);
   const className = revampType(constructor.predicate);
-  entries.push([id, parent]);
+  entries.push([id, className]);
   constructorClassNames.add(className);
 
   parentToChildrenRec[parent] ??= [];
