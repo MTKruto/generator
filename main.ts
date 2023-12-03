@@ -49,14 +49,14 @@ writer
   )
   .blankLine();
 
-writer.write("abstract class Type_ extends TLObject")
+writer.write("export abstract class Type_ extends TLObject")
   .block(() => {
   })
   .blankLine();
 
 writer
   .writeLine("// Unknown type (generic)")
-  .write("abstract class TypeX_ extends Type_")
+  .write("export abstract class TypeX_ extends Type_")
   .block(() => {
   })
   .blankLine();
@@ -309,7 +309,7 @@ for (const constructor of constructors) {
 
   if (!types.has(className)) {
     writer
-      .write(`abstract class ${className} extends Type_`)
+      .write(`export abstract class ${className} extends Type_`)
       .block()
       .blankLine();
     types.add(className);
@@ -335,7 +335,7 @@ for (const constructor of constructors) {
   parentToChildrenRec[parent].push(className);
 
   writer
-    .write(`class ${className} extends ${parent}`)
+    .write(`export class ${className} extends ${parent}`)
     .block(() => {
       if (constructor.params.length > 0) {
         writer
@@ -504,7 +504,7 @@ writer
   .blankLine();
 
 writer
-  .write("abstract class Function_<T> extends TLObject").block(() => {
+  .write("export abstract class Function_<T> extends TLObject").block(() => {
     writer.writeLine("__R: T = Symbol() as unknown as T; // virtual member");
   })
   .blankLine();
@@ -552,7 +552,7 @@ for (const function_ of functions) {
   }
 
   writer
-    .write(`class ${className} extends Function_<${type}>`)
+    .write(`export class ${className} extends Function_<${type}>`)
     .block(() => {
       writer.writeLine(`static __F = Symbol() as unknown as ${isGeneric ? "<T extends Function_<unknown>>" : ""}(${getConstructorParams(function_.params, "enums.")[0]}) => ${type};`);
 
