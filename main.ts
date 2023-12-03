@@ -45,7 +45,7 @@ writer.writeLine("// deno-fmt-ignore-file");
 
 writer
   .writeLine(
-    'import { id, params, TLObject, Params, TLObjectConstructor, ParamDesc, paramDesc, flags } from "./1_tl_object.ts";',
+    'import { id, params, TLObject, Params, TLObjectConstructor, ParamDesc, paramDesc, flags, name } from "./1_tl_object.ts";',
   )
   .blankLine();
 
@@ -106,6 +106,14 @@ function convertType(type: string, prefix = "", abstract = true, ns = false, und
   } else {
     return type;
   }
+}
+
+function getNameGetter(name: string) {
+  const writer = new CodeBlockWriter(OPTIONS);
+  writer.write("static get [name]()").block(() => {
+    writer.write(`return "${name}"`);
+  });
+  return writer;
 }
 
 function getParamDescGetter(params: any[], prefix?: string) {
@@ -350,6 +358,9 @@ for (const constructor of constructors) {
         })
         .blankLine();
 
+      writer.write(getNameGetter(constructor.predicate).toString())
+        .blankLine();
+
       writer
         .write(getParamDescGetter(constructor.params).toString())
         .blankLine();
@@ -496,7 +507,7 @@ writer = new CodeBlockWriter(OPTIONS);
 
 writer.writeLine("// deno-fmt-ignore-file");
 writer.writeLine(
-  'import { id, params, TLObject, Params, paramDesc, ParamDesc, flags } from "./1_tl_object.ts";',
+  'import { id, params, TLObject, Params, paramDesc, ParamDesc, flags, name } from "./1_tl_object.ts";',
 );
 
 writer
@@ -566,6 +577,9 @@ for (const function_ of functions) {
         .block(() => {
           writer.write(`return ${id};`);
         })
+        .blankLine();
+
+      writer.write(getNameGetter(function_.func).toString())
         .blankLine();
 
       writer
