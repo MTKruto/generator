@@ -58,6 +58,9 @@ writer
   .writeLine("// Unknown type (generic)")
   .write("export abstract class TypeX_ extends Type_")
   .block(() => {
+    writer.write("static get [name]()").block(() => {
+      writer.write('return "TypeX";');
+    });
   })
   .blankLine();
 
