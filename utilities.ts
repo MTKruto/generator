@@ -5,7 +5,8 @@ export function revampType(type: string, nss = false, func = false) {
   if (type.includes(".")) {
     const ns = type.split(".", 1)[0];
     const t = type.split(".")[1];
-    type = ns + (nss ? "." : "_") + (func ? t[0] : t[0].toUpperCase()) + t.slice(1);
+    type = ns + (nss ? "." : "_") + (func ? t[0] : t[0].toUpperCase()) +
+      t.slice(1);
   } else {
     type = (func ? type[0] : type[0].toUpperCase()) + type.slice(1);
   }

@@ -1,15 +1,16 @@
 // deno-lint-ignore-file no-explicit-any
+import { join } from "https://deno.land/std@0.217.0/path/mod.ts";
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
 import CodeBlockWriter, { Options } from "https://deno.land/x/code_block_writer@12.0.0/mod.ts";
 import { revampId, revampType } from "./utilities.ts";
 
 const OPTIONS: Partial<Options> = { indentNumberOfSpaces: 2 };
 
-const apiContent = await fetch(
-  "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl",
-).then((v) => v.text());
+const typeDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname, "types.json")));
+const functionDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname, "functions.json")));
 
-// const apiContent = Deno.readTextFileSync("../generator/api.tl");
+const url = "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl";
+const apiContent = Deno.args.includes("-d") ? Deno.readTextFileSync(join(import.meta.dirname, "api.tl")) : await fetch(url).then((v) => v.text());
 
 import mtProtoContent from "./mtproto_content.ts";
 
@@ -58,7 +59,7 @@ writer
   .writeLine("// Unknown type (generic)")
   .write("export abstract class TypeX_ extends Type_")
   .block(() => {
-    writer.write("static get [name]()").block(() => {
+    writer.write("static get [name](): string").block(() => {
       writer.write('return "TypeX";');
     });
   })
@@ -79,7 +80,13 @@ const typeMap: Record<string, string> = {
   "!x": "T",
 };
 
-function convertType(type: string, prefix = "", abstract = true, ns = false, underscore = true) {
+function convertType(
+  type: string,
+  prefix = "",
+  abstract = true,
+  ns = false,
+  underscore = true,
+) {
   if (type.startsWith("flags")) {
     type = type.split("?").slice(-1)[0];
   }
@@ -113,7 +120,7 @@ function convertType(type: string, prefix = "", abstract = true, ns = false, und
 
 function getNameGetter(name: string) {
   const writer = new CodeBlockWriter(OPTIONS);
-  writer.write("static get [name]()").block(() => {
+  writer.write("static get [name](): string").block(() => {
     writer.write(`return "${name}"`);
   });
   return writer;
@@ -183,7 +190,13 @@ function getParamsGetter(params: any[], prefix = "", underscore?: boolean) {
           continue;
         }
         const isFlag = param.type.startsWith("flags");
-        let type = convertType(param.type, prefix, undefined, undefined, underscore);
+        let type = convertType(
+          param.type,
+          prefix,
+          undefined,
+          undefined,
+          underscore,
+        );
         if (param.type.toLowerCase() == "!x") {
           type = "types.TypeX";
         } else if (type.startsWith("Array")) {
@@ -215,7 +228,7 @@ function getParamsGetter(params: any[], prefix = "", underscore?: boolean) {
   return writer;
 }
 
-function getPropertiesDeclr(params: any[], prefix?: string) {
+function getPropertiesDeclr(params: any[], prefix?: string, docs?: any) {
   let code = "";
 
   for (const param of params) {
@@ -226,6 +239,10 @@ function getPropertiesDeclr(params: any[], prefix?: string) {
     const isFlag = param.type.startsWith("flags");
     const name = param.name;
     const type = convertType(param.type, prefix, false, true);
+    const doc = docs?.parameters?.[param.name];
+    if (doc && doc.doc && doc.type == param.type) {
+      code += `/** ${doc.doc} */\n`;
+    }
     code += `${name}${isFlag ? "?:" : ":"} ${type};\n`;
   }
 
@@ -345,17 +362,22 @@ for (const constructor of constructors) {
   parentToChildrenRec[parent] ??= [];
   parentToChildrenRec[parent].push(className);
 
+  const doc = typeDocs[constructor.predicate];
+  if (doc && doc.doc) {
+    writer.writeLine(`/** ${doc.doc} */`);
+  }
+
   writer
     .write(`export class ${className} extends ${parent}`)
     .block(() => {
       if (constructor.params.length > 0) {
         writer
-          .write(getPropertiesDeclr(constructor.params, "enums."))
+          .write(getPropertiesDeclr(constructor.params, "enums.", doc))
           .blankLine();
       }
 
       writer
-        .write("protected get [id]()")
+        .write("protected get [id](): number")
         .block(() => {
           writer.writeLine(`return ${id};`);
         })
@@ -392,7 +414,9 @@ writer.indent(() => {
     if (constructor.predicate.includes(".")) {
       continue;
     }
-    writer.writeLine(`${revampType(constructor.predicate).slice(0, -1)}: ${revampType(constructor.predicate)},`);
+    writer.writeLine(
+      `${revampType(constructor.predicate).slice(0, -1)}: ${revampType(constructor.predicate)},`,
+    );
   }
 
   for (const ns of constructorNamespaces) {
@@ -405,7 +429,9 @@ writer.indent(() => {
         if (!constructor.predicate.startsWith(ns + ".")) {
           continue;
         }
-        writer.writeLine(`${revampType(constructor.predicate.split(".")[1]).slice(0, -1)}: ${revampType(constructor.predicate)},`);
+        writer.writeLine(
+          `${revampType(constructor.predicate.split(".")[1]).slice(0, -1)}: ${revampType(constructor.predicate)},`,
+        );
       }
     });
     writer.writeLine("},");
@@ -427,7 +453,9 @@ writer.write("export declare namespace types").block(() => {
     if (constructor.predicate.includes(".")) {
       continue;
     }
-    writer.writeLine(`type ${revampType(constructor.predicate).slice(0, -1)} = ${revampType(constructor.predicate)};`);
+    writer.writeLine(
+      `type ${revampType(constructor.predicate).slice(0, -1)} = ${revampType(constructor.predicate)};`,
+    );
   }
 
   for (const ns of constructorNamespaces) {
@@ -440,7 +468,9 @@ writer.write("export declare namespace types").block(() => {
         if (!constructor.predicate.startsWith(ns + ".")) {
           continue;
         }
-        writer.writeLine(`type ${revampType(constructor.predicate.split(".")[1]).slice(0, -1)} = ${revampType(constructor.predicate)};`);
+        writer.writeLine(
+          `type ${revampType(constructor.predicate.split(".")[1]).slice(0, -1)} = ${revampType(constructor.predicate)};`,
+        );
       }
     });
     writer.writeLine("}");
@@ -483,7 +513,9 @@ writer.write("export declare namespace enums").block(() => {
     if (parent.endsWith("_")) {
       parent = parent.slice(0, -1);
     }
-    writer.writeLine(`type ${parent.slice(1)} = ${children.map(typeRef).join(" | ")};`);
+    writer.writeLine(
+      `type ${parent.slice(1)} = ${children.map(typeRef).join(" | ")};`,
+    );
   }
 
   for (const ns of constructorNamespaces.values()) {
@@ -496,7 +528,9 @@ writer.write("export declare namespace enums").block(() => {
         if (parent.endsWith("_")) {
           parent = parent.slice(0, -1);
         }
-        writer.writeLine(`type ${parent} = ${children.map(typeRef).join(" | ")};`);
+        writer.writeLine(
+          `type ${parent} = ${children.map(typeRef).join(" | ")};`,
+        );
       }
     });
   }
@@ -519,7 +553,7 @@ writer
 
 writer
   .write("export abstract class Function_<T> extends TLObject").block(() => {
-    writer.writeLine("__R: T = Symbol() as unknown as T; // virtual member");
+    writer.writeLine("__R: T = null as unknown as T; // virtual member");
   })
   .blankLine();
 
@@ -565,18 +599,27 @@ for (const function_ of functions) {
     type = 'T["__R"]';
   }
 
+  const doc = functionDocs[function_.func];
+  if (doc && doc.doc) {
+    writer.writeLine(`/** ${doc.doc} */`);
+  }
+
   writer
     .write(`export class ${className} extends Function_<${type}>`)
     .block(() => {
-      writer.writeLine(`static __F = Symbol() as unknown as ${isGeneric ? "<T extends Function_<unknown>>" : ""}(${getConstructorParams(function_.params, "enums.")[0]}) => ${type};`);
+      const T = isGeneric ? "<T extends Function_<unknown>>" : "";
+      const F = `${T}(${getConstructorParams(function_.params, "enums.")[0]}) => ${type}`;
+      writer.writeLine(
+        `static __F: ${F} = null as unknown as ${F};`,
+      );
 
       if (function_.params.length > 0) {
         writer
-          .writeLine(getPropertiesDeclr(function_.params, "enums."))
+          .writeLine(getPropertiesDeclr(function_.params, "enums.", doc))
           .blankLine();
       }
 
-      writer.write("protected get [id]()")
+      writer.write("protected get [id](): number")
         .block(() => {
           writer.write(`return ${id};`);
         })
@@ -619,7 +662,14 @@ writer.indent(() => {
         if (!function_.func.startsWith(ns + ".")) {
           continue;
         }
-        writer.writeLine(`${revampType(function_.func.split(".")[1], undefined, true).slice(0, -1)}: ${revampType(function_.func, undefined, true)},`);
+        writer.writeLine(
+          `${
+            revampType(function_.func.split(".")[1], undefined, true).slice(
+              0,
+              -1,
+            )
+          }: ${revampType(function_.func, undefined, true)},`,
+        );
       }
     });
     writer.writeLine("},");
@@ -637,7 +687,9 @@ writer.write("export declare namespace functions").block(() => {
     }
     const className = revampType(function_.func, undefined, true);
     const isGeneric = function_.params.some((v: any) => v.type == "!X");
-    writer.writeLine(`type ${className.slice(0, -1)}${isGeneric ? "<T extends Function<unknown>>" : ""} = ${className}${isGeneric ? "<T>" : ""};`);
+    writer.writeLine(
+      `type ${className.slice(0, -1)}${isGeneric ? "<T extends Function<unknown>>" : ""} = ${className}${isGeneric ? "<T>" : ""};`,
+    );
   }
 
   for (const ns of functionNamespaces) {
@@ -647,7 +699,14 @@ writer.write("export declare namespace functions").block(() => {
           continue;
         }
         const isGeneric = function_.params.some((v: any) => v.type == "!X");
-        writer.writeLine(`type ${revampType(function_.func.split(".")[1], undefined, true).slice(0, -1)}${isGeneric ? "<T extends Function<unknown>>" : ""} = ${revampType(function_.func, undefined, true)}${isGeneric ? "<T>" : ""};`);
+        writer.writeLine(
+          `type ${
+            revampType(function_.func.split(".")[1], undefined, true).slice(
+              0,
+              -1,
+            )
+          }${isGeneric ? "<T extends Function<unknown>>" : ""} = ${revampType(function_.func, undefined, true)}${isGeneric ? "<T>" : ""};`,
+        );
       }
     });
   }
