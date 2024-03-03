@@ -6,11 +6,11 @@ import { revampId, revampType } from "./utilities.ts";
 
 const OPTIONS: Partial<Options> = { indentNumberOfSpaces: 2 };
 
-const typeDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname, "types.json")));
-const functionDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname, "functions.json")));
+const typeDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname!, "types.json")));
+const functionDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname!, "functions.json")));
 
 const url = "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl";
-const apiContent = Deno.args.includes("-d") ? Deno.readTextFileSync(join(import.meta.dirname, "api.tl")) : await fetch(url).then((v) => v.text());
+const apiContent = Deno.args.includes("-d") ? Deno.readTextFileSync(join(import.meta.dirname!, "api.tl")) : await fetch(url).then((v) => v.text());
 
 import mtProtoContent from "./mtproto_content.ts";
 

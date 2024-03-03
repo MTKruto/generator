@@ -69,7 +69,7 @@ if (!Deno.args.includes("--skip-types")) {
   const types = {} as Record<string, Awaited<ReturnType<typeof fetchType>>>;
 
   for (const [i, constructor] of constructors.entries()) {
-    if (!(constructor.predicate in docs)) {
+    if (!(constructor.predicate in types)) {
       try {
         types[constructor.predicate] = await fetchType(constructor.predicate);
       } catch (err) {
