@@ -1,16 +1,20 @@
 // deno-lint-ignore-file no-explicit-any
-import { join } from "https://deno.land/std@0.217.0/path/mod.ts";
+import { join } from "https://deno.land/std@0.223.0/path/mod.ts";
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
 import CodeBlockWriter, { Options } from "https://deno.land/x/code_block_writer@12.0.0/mod.ts";
 import { revampId, revampType } from "./utilities.ts";
 
 const OPTIONS: Partial<Options> = { indentNumberOfSpaces: 2 };
 
-const typeDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname!, "types.json")));
-const functionDocs = JSON.parse(Deno.readTextFileSync(join(import.meta.dirname!, "functions.json")));
+const typeDocs = JSON.parse(
+  Deno.readTextFileSync(join(import.meta.dirname!, "types.json")),
+);
+const functionDocs = JSON.parse(
+  Deno.readTextFileSync(join(import.meta.dirname!, "functions.json")),
+);
 
 const url = "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/SourceFiles/mtproto/scheme/api.tl";
-const apiContent = Deno.args.includes("-d") ? Deno.readTextFileSync(join(import.meta.dirname!, "api.tl")) : await fetch(url).then((v) => v.text());
+const apiContent = Deno.args.includes("-d") ? Deno.readTextFileSync(join(import.meta.dirname!, "telegram_api.tl")) : await fetch(url).then((v) => v.text());
 
 import mtProtoContent from "./mtproto_content.ts";
 
@@ -553,7 +557,7 @@ writer
 
 writer
   .write("export abstract class Function_<T> extends TLObject").block(() => {
-    writer.writeLine("__R: T = null as unknown as T; // virtual member");
+    writer.writeLine("__R!: T;");
   })
   .blankLine();
 
@@ -610,7 +614,7 @@ for (const function_ of functions) {
       const T = isGeneric ? "<T extends Function_<unknown>>" : "";
       const F = `${T}(${getConstructorParams(function_.params, "enums.")[0]}) => ${type}`;
       writer.writeLine(
-        `static __F: ${F} = null as unknown as ${F};`,
+        `static __F: ${F};`,
       );
 
       if (function_.params.length > 0) {
