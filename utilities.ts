@@ -1,20 +1,55 @@
-import { bufferFromBigInt } from "https://esm.sh/gh/MTKruto/MTKruto@5f60ae79599f854042820723127c0f60c5069073/utilities/0_buffer.ts";
-
-export function revampType(type: string, nss = false, func = false) {
+export function revampType(type: string) {
+  if (type == "true") {
+    type += "_";
+  }
   type = type.split("?").slice(-1)[0];
   if (type.includes(".")) {
     const ns = type.split(".", 1)[0];
     const t = type.split(".")[1];
-    type = ns + (nss ? "." : "_") + (func ? t[0] : t[0].toUpperCase()) +
-      t.slice(1);
+    return ns + "_" + t;
   } else {
-    type = (func ? type[0] : type[0].toUpperCase()) + type.slice(1);
+    return type;
   }
-  // return type
-  return type + "_";
 }
 
-export function revampId(id: number) {
-  return "0x" + [...bufferFromBigInt(id, 4, false, true)]
-    .map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+const typeMap: Record<string, string> = {
+  "int": "number",
+  "long": "bigint",
+  "bool": "boolean",
+  "double": "number",
+  "true": "true",
+  "string": "string",
+  "bytes": "Uint8Array",
+  "int128": "bigint",
+  "int256": "bigint",
+  "!x": "T",
+};
+
+export function convertType(
+  type: string,
+  prefix = "",
+) {
+  if (type.startsWith("flags")) {
+    type = type.split("?").slice(-1)[0];
+  }
+  let isVector = false;
+  // toLowerCase because it is sometimes `vector` in mtproto.tl
+  if (type.toLowerCase().startsWith("vector")) {
+    isVector = true;
+    type = type.split("<")[1].split(">")[0];
+  }
+  const mapping = typeMap[type.toLowerCase()];
+  if (mapping != undefined) {
+    type = mapping;
+  } else {
+    type = revampType(type);
+    if (prefix) {
+      type = `${prefix}${type.endsWith("_") ? type.slice(0, -1) : type}`;
+    }
+  }
+  if (isVector) {
+    return `Array<${type}>`;
+  } else {
+    return type == "X" ? "ReturnType<T>" : type;
+  }
 }

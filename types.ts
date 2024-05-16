@@ -45,7 +45,9 @@ function getDoc(document: Document) {
   ) ?? "";
 }
 
-export async function fetchType(name: string): Promise<{ doc: string; parameters: ReturnType<typeof getParameters> }> {
+export async function fetchType(
+  name: string,
+): Promise<{ doc: string; parameters: ReturnType<typeof getParameters> }> {
   const document = await load(`https://core.telegram.org/constructor/${name}`);
   return {
     doc: getDoc(document),
@@ -53,7 +55,9 @@ export async function fetchType(name: string): Promise<{ doc: string; parameters
   };
 }
 
-export async function fetchFunction(name: string): Promise<{ doc: string; parameters: ReturnType<typeof getParameters> }> {
+export async function fetchFunction(
+  name: string,
+): Promise<{ doc: string; parameters: ReturnType<typeof getParameters> }> {
   const document = await load(`https://core.telegram.org/method/${name}`);
   return {
     doc: getDoc(document),
