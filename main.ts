@@ -246,7 +246,7 @@ writer.write("export const getEnum: (name: string) => (keyof Types)[] | undefine
   .blankLine();
 
 writer.writeLine("// @ts-ignore: lib");
-writer.writeLine('export const _types: Map<string, Parameters> | undefined = typeof Deno === "undefined" ? typeof process === "undefined" ? undefined : process.env.TEST ? types : undefined : Deno.env.get("TEST") ? types : undefined;')
+writer.writeLine('export const _types: Map<string, Parameters> | undefined = typeof Deno === "undefined" ? typeof process === "undefined" ? undefined : process.env.__TYPE_MAP ? types : undefined : Deno.env.get("__TYPE_MAP") ? types : undefined;')
   .blankLine();
 
-Deno.writeTextFileSync("./test.ts", writer.toString().trim() + "\n");
+Deno.writeTextFileSync("./tl/0_api.ts", writer.toString().trim() + "\n");
