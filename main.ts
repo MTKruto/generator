@@ -61,7 +61,7 @@ for (const constructor of constructors) {
 
   const w = new CodeBlockWriter({ indentNumberOfSpaces: 2 }).write(`export interface ${type}`);
   w.block(() => {
-    w.writeLine(`_: "${constructor.predicate}"`);
+    w.writeLine(`_: "${constructor.predicate}";`);
     for (const p of getInterfaceProperties(constructor.params)) {
       w.writeLine(`${p.name}${p.hasQuestionToken ? "?" : ""}: ${p.type};`);
     }
@@ -84,7 +84,7 @@ for (const function_ of functions) {
   const isGeneric = function_.params.some((v: any) => v.type == "!X");
   const type = revampType(function_.func);
 
-  const w = new CodeBlockWriter().write(`export interface ${type}${isGeneric ? "<T extends Function>" : ""}`);
+  const w = new CodeBlockWriter().write(`export interface ${type}${isGeneric ? "<T>" : ""}`);
   w.block(() => {
     w.writeLine(`_: "${function_.func}"`);
     for (const p of getInterfaceProperties(function_.params)) {
@@ -108,7 +108,7 @@ writer.write("export interface Types").block(() => {
   }
 }).blankLine();
 
-writer.write("export interface Functions<T extends Function = Function>").block(() => {
+writer.write("export interface Functions<T = Function>").block(() => {
   for (const function_ of functions) {
     if (SKIP_IDS.includes(function_.id)) {
       continue;
@@ -126,9 +126,9 @@ writer.write("export interface Enums").block(() => {
 
 writer.writeLine("export type AnyType = Types[keyof Types];").blankLine();
 
-writer.writeLine("export type AnyFunction<T extends Function = Function>= Functions<T>[keyof Functions<T>];").blankLine();
+writer.writeLine("export type AnyFunction<T = Function>= Functions<T>[keyof Functions<T>];").blankLine();
 
-writer.writeLine("export type AnyObject<T extends Function = Function> = AnyType | AnyFunction<T>;").blankLine();
+writer.writeLine("export type AnyObject<T = Function> = AnyType | AnyFunction<T>;").blankLine();
 
 for (const [parent, children] of Object.entries(parentToChildrenRec)) {
   const alias = `export type ${revampType(parent)} = ${children.map(revampType).join(" | ")};`;
