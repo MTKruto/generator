@@ -76,6 +76,7 @@ for (const constructor of constructors) {
   writer.blankLine();
 }
 
+const genericFunctions = new Array<string>();
 for (const function_ of functions) {
   if (SKIP_IDS.includes(function_.id)) {
     continue;
@@ -85,6 +86,7 @@ for (const function_ of functions) {
   const type = revampType(function_.func);
 
   const w = new CodeBlockWriter().write(`export interface ${type}${isGeneric ? "<T>" : ""}`);
+  if (isGeneric) genericFunctions.push(type);
   w.block(() => {
     w.writeLine(`_: "${function_.func}"`);
     for (const p of getInterfaceProperties(function_.params)) {
@@ -126,7 +128,9 @@ writer.write("export interface Enums").block(() => {
 
 writer.writeLine("export type AnyType = Types[keyof Types];").blankLine();
 
-writer.writeLine("export type AnyFunction<T = Function>= Functions<T>[keyof Functions<T>];").blankLine();
+writer.writeLine("export type AnyFunction<T = Function> = Functions<T>[keyof Functions<T>];").blankLine();
+
+writer.writeLine(`export type AnyGenericFunction<T> = ${genericFunctions.map((v) => `${v}<T>`).join(" | ")}`).blankLine();
 
 writer.writeLine("export type AnyObject<T = Function> = AnyType | AnyFunction<T>;").blankLine();
 
