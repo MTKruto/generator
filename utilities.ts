@@ -1,5 +1,5 @@
 export function revampType(type: string) {
-  if (type == "true") {
+  if (type == "true" || type == "null") {
     type += "_";
   }
   type = type.split("?").slice(-1)[0];
