@@ -11,12 +11,13 @@ const SKIP_IDS = [0x1CB5C415, 0xBC799737, 0x997275B5];
 
 const apiContent = Deno.readTextFileSync(join(import.meta.dirname!, "telegram_api.tl"));
 
-const layer = Number(apiContent.match(/\/\/ LAYER ([0-9]+)/)?.[1])
+const layer = Number(apiContent.match(/\/\/ LAYER ([0-9]+)/)?.[1]);
 
 const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
-const { constructors: apiConstructors, functions: apiFunctions } = parse(
-  apiContent,
-);
+const {
+  constructors: apiConstructors,
+  functions: apiFunctions,
+} = parse(apiContent);
 
 const constructors = mtProtoConstructors.concat(apiConstructors);
 const functions = mtProtoFunctions.concat(apiFunctions);
@@ -257,4 +258,4 @@ writer.writeLine('export const _types: Map<string, Parameters> | undefined = typ
 
 Deno.writeTextFileSync("./tl/0_api.ts", writer.toString().trim() + "\n");
 
-Deno.writeTextFileSync('4_constants.ts', Deno.readTextFileSync('4_constants.ts').replace(/LAYER = [0-9]+/i, `LAYER = ${layer}`))
+Deno.writeTextFileSync("4_constants.ts", Deno.readTextFileSync("4_constants.ts").replace(/LAYER = [0-9]+/i, `LAYER = ${layer}`));
