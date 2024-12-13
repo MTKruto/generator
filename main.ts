@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
-import { OptionalKind, PropertySignatureStructure } from "https://deno.land/x/ts_morph@22.0.0/mod.ts";
+import { OptionalKind, PropertySignatureStructure } from "jsr:@ts-morph/ts-morph@24.0.0";
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
-import { join } from "https://deno.land/std@0.223.0/path/mod.ts";
+import { join } from "jsr:@std/path@1.0.8/join";
 import { convertType, revampType } from "./utilities.ts";
 import mtProtoContent from "./mtproto_content.ts";
 
