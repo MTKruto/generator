@@ -167,35 +167,9 @@ function getParamInfo(params: any[], prefix = "") {
 
   writer.indent(() => {
     for (const param of params) {
-      if (param.name.startsWith("flags") && param.type == "#") {
-        writer.writeLine(`["${param.name}", flags, "${param.type}"],`);
-        continue;
-      }
-      let type = convertType(
-        param.type,
-        prefix,
-      );
-      if (param.type.toLowerCase() == "!x") {
-        type = "null";
-      } else if (type.startsWith("Array")) {
-        type = type.split("<")[1].split(">")[0];
-        if (
-          (!type.replace(prefix, "").startsWith("_")) &&
-          type != "Uint8Array"
-        ) {
-          type = `"${type}"`;
-        }
-        type = `[${type}]`;
-      } else if (
-        (!type.replace(prefix, "").startsWith("_")) &&
-        type != "Uint8Array"
-      ) {
-        type = `"${type}"`;
-      }
-      const name = param.name;
       writer
         .write(
-          `["${name}", ${type}, "${param.type}"],`,
+          `["${param.name}", "${param.type}"],`,
         )
         .newLine();
     }
@@ -205,10 +179,7 @@ function getParamInfo(params: any[], prefix = "") {
   return writer;
 }
 
-writer.writeLine("export const flags: symbol = Symbol();")
-  .blankLine();
-
-writer.writeLine("export type Parameters = [number, [string, unknown, string][]];")
+writer.writeLine("export type Parameters = [number, [string, string][]];")
   .blankLine();
 
 writer.write("const enums: Map<string, (keyof Types)[]> = new Map([").indent(() => {
@@ -246,10 +217,22 @@ writer.write("const types: Map<string, Parameters> = new Map([").indent(() => {
   .writeLine("] as unknown as [string, Parameters][]);")
   .blankLine();
 
+writer.write("const returnTypes = new Map<string, string>([").indent(() => {
+  for (const function_ of functions) {
+    if (SKIP_IDS.includes(function_.id)) continue;
+    writer.writeLine(`["${function_.func}", "${function_.type}"],`);
+  }
+})
+  .write("] as unknown as [string, string][]);")
+  .blankLine();
+
 writer.write("export const getType: (name: string) => Parameters | undefined = types.get.bind(types);")
   .blankLine();
 
 writer.write("export const getEnum: (name: string) => (keyof Types)[] | undefined = enums.get.bind(enums);")
+  .blankLine();
+
+writer.write("export const getReturnType: (name: string) => string | undefined = returnTypes.get.bind(types);")
   .blankLine();
 
 writer.writeLine("// @ts-ignore: lib");
