@@ -19,11 +19,17 @@ const {
   functions: apiFunctions,
 } = parse(apiContent);
 
-const mtproto = Deno.args.includes("--mtproto");
-const constructors = mtproto ? mtProtoConstructors : apiConstructors;
-const functions = mtproto ? mtProtoFunctions : apiFunctions;
+const constructors = mtProtoConstructors.concat(apiConstructors);
+const functions = mtProtoFunctions.concat(apiFunctions);
 
 const writer = new CodeBlockWriter({ indentNumberOfSpaces: 2 });
+
+writer.writeLine(`// object#number string:string... = string;
+export type ObjectDefinition = [number, /* ID */ [string, string][], string];
+
+export type Schema = Record<string, ObjectDefinition>;
+`)
+  .blankLine();
 
 writer.writeLine("declare const R: unique symbol;").blankLine();
 
@@ -148,7 +154,7 @@ for (const [parent, children] of Object.entries(parentToChildrenRec)) {
 }
 
 const id = (v: any) => `0x${v.id.toString(16).toUpperCase().padStart("7B197DC8".length, "0")}`;
-writer.write("const map: Map<number, string> = new Map([").indent(() => {
+writer.write("const idMap: Map<number, string> = new Map([").indent(() => {
   for (const constructor of constructors) {
     if (SKIP_IDS.includes(constructor.id)) continue;
     writer.writeLine(`[${id(constructor)}, "${constructor.predicate}"],`);
@@ -157,12 +163,16 @@ writer.write("const map: Map<number, string> = new Map([").indent(() => {
   .writeLine("]);")
   .blankLine();
 
-writer.writeLine("export const getTypeName: (id: number) => string | undefined = map.get.bind(map);").blankLine();
+writer.writeLine("export const getObjectIdentifier: (id: number) => string | undefined = idMap.get.bind(idMap);").blankLine();
 
 function getParamInfo(params: any[]) {
   const writer = new CodeBlockWriter({ indentNumberOfSpaces: 2 });
 
   writer.write("[");
+  if (params.length == 0) {
+    writer.write("],");
+    return writer;
+  }
 
   if (params.length > 0) {
     writer.newLine();
@@ -182,55 +192,29 @@ function getParamInfo(params: any[]) {
   return writer;
 }
 
-writer.writeLine("export type Parameters = [number, [string, string][]] | [number, [string, string][], string];")
-  .blankLine();
-
-writer.write("const enums: Map<string, (keyof Types)[]> = new Map([").indent(() => {
-  for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-    writer.writeLine(`["${parent}", [${children.map((v) => `"${v}"`).join(", ")}]],`);
-  }
-})
-  .writeLine("]);")
-  .blankLine();
-
-writer.write("const types: Map<string, Parameters> = new Map([").indent(() => {
+writer.write("export const schema: Schema = Object.freeze({").indent(() => {
   for (const constructor of constructors) {
     if (SKIP_IDS.includes(constructor.id)) continue;
-    writer.write("[").indent(() => {
-      writer.writeLine(`"${constructor.predicate}",`);
-      writer.write("[").indent(() => {
-        writer.writeLine(`${id(constructor)},`);
-        writer.write(getParamInfo(constructor.params).toString());
-      })
-        .writeLine("],");
-    }).writeLine("],");
+    writer.write(`"${constructor.predicate}": [`).indent(() => {
+      writer.writeLine(`${id(constructor)},`);
+      writer.writeLine(getParamInfo(constructor.params).toString());
+      writer.write(`"${constructor.type}",`);
+    })
+      .writeLine("],");
   }
   for (const function_ of functions) {
     if (SKIP_IDS.includes(function_.id)) continue;
-    writer.write("[").indent(() => {
-      writer.writeLine(`"${function_.func}",`);
-      writer.write("[").indent(() => {
-        writer.writeLine(`${id(function_)},`);
-        writer.writeLine(getParamInfo(function_.params).toString());
-        writer.write(`"${function_.type}",`);
-      })
-        .writeLine("],");
-    }).writeLine("],");
+    writer.write(`"${function_.func}": [`).indent(() => {
+      writer.writeLine(`${id(function_)},`);
+      writer.writeLine(getParamInfo(function_.params).toString());
+      writer.write(`"${function_.type}",`);
+    })
+      .writeLine("],");
   }
 })
-  .writeLine("] as unknown as [string, Parameters][]);")
+  .writeLine("});")
   .blankLine();
 
-writer.write("export const getType: (name: string) => Parameters | undefined = types.get.bind(types);")
-  .blankLine();
+Deno.writeTextFileSync("./tl/0_api.ts", writer.toString().trim() + "\n");
 
-writer.write("export const getEnum: (name: string) => (keyof Types)[] | undefined = enums.get.bind(enums);")
-  .blankLine();
-
-writer.writeLine("// @ts-ignore: lib");
-writer.writeLine('export const _types: Map<string, Parameters> | undefined = typeof Deno === "undefined" ? typeof process === "undefined" ? undefined : process.env.__TYPE_MAP ? types : undefined : Deno.env.get("__TYPE_MAP") ? types : undefined;')
-  .blankLine();
-
-Deno.writeTextFileSync(mtproto ? "./tl/0_mtproto_api.ts" : "./tl/0_api.ts", writer.toString().trim() + "\n");
-
-!mtproto && Deno.writeTextFileSync("4_constants.ts", Deno.readTextFileSync("4_constants.ts").replace(/LAYER = [0-9]+/i, `LAYER = ${layer}`));
+Deno.writeTextFileSync("4_constants.ts", Deno.readTextFileSync("4_constants.ts").replace(/LAYER = [0-9]+/i, `LAYER = ${layer}`));
