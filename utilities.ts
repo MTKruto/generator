@@ -53,3 +53,7 @@ export function convertType(
     return type == "X" ? "ReturnType<T>" : type;
   }
 }
+
+export function objKey(p: string) {
+  return p.includes(".") ? `"${p}"` : p;
+}

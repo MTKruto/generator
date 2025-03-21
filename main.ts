@@ -1,19 +1,25 @@
 // deno-lint-ignore-file no-explicit-any
-import { OptionalKind, PropertySignatureStructure } from "jsr:@ts-morph/ts-morph@24.0.0";
+import {
+  OptionalKind,
+  PropertySignatureStructure,
+} from "jsr:@ts-morph/ts-morph@24.0.0";
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
 import { join } from "jsr:@std/path@1.0.8/join";
-import { convertType, revampType } from "./utilities.ts";
+import { convertType, objKey, revampType } from "./utilities.ts";
 import mtProtoContent from "./mtproto_content.ts";
 
 import CodeBlockWriter from "https://jsr.io/@david/code-block-writer/13.0.1/mod.ts";
 
 const SKIP_IDS = [0x1CB5C415, 0xBC799737, 0x997275B5];
 
-const apiContent = Deno.readTextFileSync(join(import.meta.dirname!, "telegram_api.tl"));
+const apiContent = Deno.readTextFileSync(
+  join(import.meta.dirname!, "telegram_api.tl"),
+);
 
 const layer = Number(apiContent.match(/\/\/ LAYER ([0-9]+)/)?.[1]);
 
-const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
+const { constructors: mtProtoConstructors, functions: mtProtoFunctions } =
+  parse(mtProtoContent);
 const {
   constructors: apiConstructors,
   functions: apiFunctions,
@@ -24,11 +30,7 @@ const functions = mtProtoFunctions.concat(apiFunctions);
 
 const writer = new CodeBlockWriter({ indentNumberOfSpaces: 2 });
 
-writer.writeLine(`// object#number string:string... = string;
-export type ObjectDefinition = [number, /* ID */ [string, string][], string];
-
-export type Schema = Record<string, ObjectDefinition>;
-`)
+writer.writeLine(`import type { Schema } from "./0_types.ts";`)
   .blankLine();
 
 writer.writeLine("declare const R: unique symbol;").blankLine();
@@ -36,7 +38,9 @@ writer.writeLine("declare const R: unique symbol;").blankLine();
 writer.writeLine("export type Function = { [R]?: unknown };")
   .blankLine();
 
-writer.writeLine("export type ReturnType<T> = T extends Function ? NonNullable<T[typeof R]> : never;").blankLine();
+writer.writeLine(
+  "export type ReturnType<T> = T extends Function ? NonNullable<T[typeof R]> : never;",
+).blankLine();
 
 function getInterfaceProperties(params: any[], prefix?: string) {
   const properties = new Array<OptionalKind<PropertySignatureStructure>>();
@@ -69,7 +73,9 @@ for (const constructor of constructors) {
 
   const type = revampType(constructor.predicate);
 
-  const w = new CodeBlockWriter({ indentNumberOfSpaces: 2 }).write(`export interface ${type}`);
+  const w = new CodeBlockWriter({ indentNumberOfSpaces: 2 }).write(
+    `export interface ${type}`,
+  );
   w.block(() => {
     w.writeLine(`_: "${constructor.predicate}";`);
     for (const p of getInterfaceProperties(constructor.params)) {
@@ -95,7 +101,9 @@ for (const function_ of functions) {
   const isGeneric = function_.params.some((v: any) => v.type == "!X");
   const type = revampType(function_.func);
 
-  const w = new CodeBlockWriter().write(`export interface ${type}${isGeneric ? "<T>" : ""}`);
+  const w = new CodeBlockWriter().write(
+    `export interface ${type}${isGeneric ? "<T>" : ""}`,
+  );
   if (isGeneric) genericFunctions.push(type);
   w.block(() => {
     w.writeLine(`_: "${function_.func}"`);
@@ -116,7 +124,9 @@ writer.write("export interface Types").block(() => {
     if (SKIP_IDS.includes(constructor.id)) {
       continue;
     }
-    writer.writeLine(`"${constructor.predicate}": ${revampType(constructor.predicate)};`);
+    writer.writeLine(
+      `"${constructor.predicate}": ${revampType(constructor.predicate)};`,
+    );
   }
 }).blankLine();
 
@@ -126,7 +136,11 @@ writer.write("export interface Functions<T = Function>").block(() => {
       continue;
     }
     const isGeneric = function_.params.some((v: any) => v.type == "!X");
-    writer.writeLine(`"${function_.func}": ${revampType(function_.func)}${isGeneric ? "<T>" : ""};`);
+    writer.writeLine(
+      `"${function_.func}": ${revampType(function_.func)}${
+        isGeneric ? "<T>" : ""
+      };`,
+    );
   }
 }).blankLine();
 
@@ -138,32 +152,30 @@ writer.write("export interface Enums").block(() => {
 
 writer.writeLine("export type AnyType = Types[keyof Types];").blankLine();
 
-writer.writeLine("export type AnyFunction<T = Function> = Functions<T>[keyof Functions<T>];").blankLine();
+writer.writeLine(
+  "export type AnyFunction<T = Function> = Functions<T>[keyof Functions<T>];",
+).blankLine();
 
 if (genericFunctions.length) {
-  writer.writeLine(`export type AnyGenericFunction<T> = ${genericFunctions.map((v) => `${v}<T>`).join(" | ")}`).blankLine();
+  writer.writeLine(
+    `export type AnyGenericFunction<T> = ${
+      genericFunctions.map((v) => `${v}<T>`).join(" | ")
+    }`,
+  ).blankLine();
 }
 
-writer.writeLine("export type AnyObject<T = Function> = AnyType | AnyFunction<T>;").blankLine();
+writer.writeLine(
+  "export type AnyObject<T = Function> = AnyType | AnyFunction<T>;",
+).blankLine();
 
 for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-  const alias = `export type ${revampType(parent)} = ${children.map(revampType).join(" | ")};`;
+  const alias = `export type ${revampType(parent)} = ${
+    children.map(revampType).join(" | ")
+  };`;
 
   writer.writeLine(alias);
   writer.blankLine();
 }
-
-const id = (v: any) => `0x${v.id.toString(16).toUpperCase().padStart("7B197DC8".length, "0")}`;
-writer.write("const idMap: Map<number, string> = new Map([").indent(() => {
-  for (const constructor of constructors) {
-    if (SKIP_IDS.includes(constructor.id)) continue;
-    writer.writeLine(`[${id(constructor)}, "${constructor.predicate}"],`);
-  }
-})
-  .writeLine("]);")
-  .blankLine();
-
-writer.writeLine("export const getObjectIdentifier: (id: number) => string | undefined = idMap.get.bind(idMap);").blankLine();
 
 function getParamInfo(params: any[]) {
   const writer = new CodeBlockWriter({ indentNumberOfSpaces: 2 });
@@ -192,29 +204,48 @@ function getParamInfo(params: any[]) {
   return writer;
 }
 
-writer.write("export const schema: Schema = Object.freeze({").indent(() => {
-  for (const constructor of constructors) {
-    if (SKIP_IDS.includes(constructor.id)) continue;
-    writer.write(`"${constructor.predicate}": [`).indent(() => {
-      writer.writeLine(`${id(constructor)},`);
-      writer.writeLine(getParamInfo(constructor.params).toString());
-      writer.write(`"${constructor.type}",`);
+const id = (v: any) =>
+  `0x${v.id.toString(16).toUpperCase().padStart("7B197DC8".length, "0")}`;
+
+writer.write("export const schema = Object.freeze({").indent(() => {
+  writer.write("definitions: {").indent(() => {
+    for (const constructor of constructors) {
+      if (SKIP_IDS.includes(constructor.id)) continue;
+      writer.write(`${objKey(constructor.predicate)}: [`).indent(() => {
+        writer.writeLine(`${id(constructor)},`);
+        writer.writeLine(getParamInfo(constructor.params).toString());
+        writer.write(`"${constructor.type}",`);
+      })
+        .writeLine("],");
+    }
+    for (const function_ of functions) {
+      if (SKIP_IDS.includes(function_.id)) continue;
+      writer.write(`${objKey(function_.func)}: [`).indent(() => {
+        writer.writeLine(`${id(function_)},`);
+        writer.writeLine(getParamInfo(function_.params).toString());
+        writer.write(`"${function_.type}",`);
+      })
+        .writeLine("],");
+    }
+  }).writeLine("},");
+  writer.write("identifierToName: {")
+    .indent(() => {
+      for (const constructor of constructors) {
+        if (SKIP_IDS.includes(constructor.id)) continue;
+        writer.writeLine(`[${id(constructor)}]: "${constructor.predicate}",`);
+      }
     })
-      .writeLine("],");
-  }
-  for (const function_ of functions) {
-    if (SKIP_IDS.includes(function_.id)) continue;
-    writer.write(`"${function_.func}": [`).indent(() => {
-      writer.writeLine(`${id(function_)},`);
-      writer.writeLine(getParamInfo(function_.params).toString());
-      writer.write(`"${function_.type}",`);
-    })
-      .writeLine("],");
-  }
+    .writeLine("},");
 })
-  .writeLine("});")
+  .writeLine("}) as unknown as Schema;")
   .blankLine();
 
-Deno.writeTextFileSync("./tl/0_api.ts", writer.toString().trim() + "\n");
+Deno.writeTextFileSync("./tl/1_api.ts", writer.toString().trim() + "\n");
 
-Deno.writeTextFileSync("4_constants.ts", Deno.readTextFileSync("4_constants.ts").replace(/LAYER = [0-9]+/i, `LAYER = ${layer}`));
+Deno.writeTextFileSync(
+  "4_constants.ts",
+  Deno.readTextFileSync("4_constants.ts").replace(
+    /LAYER = [0-9]+/i,
+    `LAYER = ${layer}`,
+  ),
+);
