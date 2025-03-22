@@ -1,8 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import {
-  OptionalKind,
-  PropertySignatureStructure,
-} from "jsr:@ts-morph/ts-morph@24.0.0";
+import { OptionalKind, PropertySignatureStructure } from "jsr:@ts-morph/ts-morph@24.0.0";
 import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
 import { join } from "jsr:@std/path@1.0.8/join";
 import { convertType, objKey, revampType } from "./utilities.ts";
@@ -18,15 +15,15 @@ const apiContent = Deno.readTextFileSync(
 
 const layer = Number(apiContent.match(/\/\/ LAYER ([0-9]+)/)?.[1]);
 
-const { constructors: mtProtoConstructors, functions: mtProtoFunctions } =
-  parse(mtProtoContent);
+const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
 const {
   constructors: apiConstructors,
   functions: apiFunctions,
 } = parse(apiContent);
 
-const constructors = mtProtoConstructors.concat(apiConstructors);
-const functions = mtProtoFunctions.concat(apiFunctions);
+const mtproto = Deno.args.includes("--mtproto");
+const constructors = mtproto ? mtProtoConstructors : apiConstructors;
+const functions = mtproto ? mtProtoFunctions : apiFunctions;
 
 const writer = new CodeBlockWriter({ indentNumberOfSpaces: 2 });
 
@@ -137,9 +134,7 @@ writer.write("export interface Functions<T = Function>").block(() => {
     }
     const isGeneric = function_.params.some((v: any) => v.type == "!X");
     writer.writeLine(
-      `"${function_.func}": ${revampType(function_.func)}${
-        isGeneric ? "<T>" : ""
-      };`,
+      `"${function_.func}": ${revampType(function_.func)}${isGeneric ? "<T>" : ""};`,
     );
   }
 }).blankLine();
@@ -158,9 +153,7 @@ writer.writeLine(
 
 if (genericFunctions.length) {
   writer.writeLine(
-    `export type AnyGenericFunction<T> = ${
-      genericFunctions.map((v) => `${v}<T>`).join(" | ")
-    }`,
+    `export type AnyGenericFunction<T> = ${genericFunctions.map((v) => `${v}<T>`).join(" | ")}`,
   ).blankLine();
 }
 
@@ -169,9 +162,7 @@ writer.writeLine(
 ).blankLine();
 
 for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-  const alias = `export type ${revampType(parent)} = ${
-    children.map(revampType).join(" | ")
-  };`;
+  const alias = `export type ${revampType(parent)} = ${children.map(revampType).join(" | ")};`;
 
   writer.writeLine(alias);
   writer.blankLine();
@@ -204,8 +195,7 @@ function getParamInfo(params: any[]) {
   return writer;
 }
 
-const id = (v: any) =>
-  `0x${v.id.toString(16).toUpperCase().padStart("7B197DC8".length, "0")}`;
+const id = (v: any) => `0x${v.id.toString(16).toUpperCase().padStart("7B197DC8".length, "0")}`;
 
 writer.write("export const schema = Object.freeze({").indent(() => {
   writer.write("definitions: {").indent(() => {
@@ -240,7 +230,7 @@ writer.write("export const schema = Object.freeze({").indent(() => {
   .writeLine("}) as unknown as Schema;")
   .blankLine();
 
-Deno.writeTextFileSync("./tl/1_api.ts", writer.toString().trim() + "\n");
+Deno.writeTextFileSync(mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts", writer.toString().trim() + "\n");
 
 Deno.writeTextFileSync(
   "4_constants.ts",
