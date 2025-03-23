@@ -230,12 +230,9 @@ writer.write("export const schema = Object.freeze({").indent(() => {
   .writeLine("}) as unknown as Schema;")
   .blankLine();
 
-Deno.writeTextFileSync(mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts", writer.toString().trim() + "\n");
+if (!mtproto) {
+  writer.writeLine(`export const LAYER = ${layer};`)
+    .blankLine();
+}
 
-Deno.writeTextFileSync(
-  "4_constants.ts",
-  Deno.readTextFileSync("4_constants.ts").replace(
-    /LAYER = [0-9]+/i,
-    `LAYER = ${layer}`,
-  ),
-);
+Deno.writeTextFileSync(mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts", writer.toString().trim() + "\n");
