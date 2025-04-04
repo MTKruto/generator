@@ -235,4 +235,7 @@ if (!mtproto) {
     .blankLine();
 }
 
-Deno.writeTextFileSync(mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts", writer.toString().trim() + "\n");
+Deno.writeTextFileSync(
+  mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts",
+  writer.toString().trim() + "\n",
+);
