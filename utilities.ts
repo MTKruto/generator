@@ -19,7 +19,7 @@ const typeMap: Record<string, string> = {
   "double": "number",
   "true": "true",
   "string": "string",
-  "bytes": "Uint8Array",
+  "bytes": "Uint8Array<ArrayBuffer>",
   "int128": "bigint",
   "int256": "bigint",
   "!x": "T",
