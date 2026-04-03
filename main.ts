@@ -71,7 +71,9 @@ for (const constructor of constructors) {
   const type = revampType(constructor.predicate);
 
   const w = new CodeBlockWriter({ indentNumberOfSpaces: 2 }).write(
-    `export interface ${type}`,
+    `
+    /** https://core.telegram.org/constructor/${constructor.predicate} */
+    export interface ${type}`,
   );
   w.block(() => {
     w.writeLine(`_: "${constructor.predicate}";`);
@@ -99,7 +101,9 @@ for (const function_ of functions) {
   const type = revampType(function_.func);
 
   const w = new CodeBlockWriter().write(
-    `export interface ${type}${isGeneric ? "<T>" : ""}`,
+    `
+    /** https://core.telegram.org/method/${function_.func} */
+    export interface ${type}${isGeneric ? "<T>" : ""}`,
   );
   if (isGeneric) genericFunctions.push(type);
   w.block(() => {
@@ -162,7 +166,8 @@ writer.writeLine(
 ).blankLine();
 
 for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-  const alias = `export type ${revampType(parent)} = ${children.map(revampType).join(" | ")};`;
+  const alias = `/** https://core.telegram.org/type/${parent} */
+export type ${revampType(parent)} = ${children.map(revampType).join(" | ")};`;
 
   writer.writeLine(alias);
   writer.blankLine();
