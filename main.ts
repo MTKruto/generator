@@ -4,6 +4,7 @@ import { parse } from "https://deno.land/x/tl_json@1.1.2/mod.ts";
 import { join } from "jsr:@std/path@1.0.8/join";
 import { convertType, objKey, revampType } from "./utilities.ts";
 import mtProtoContent from "./mtproto_content.ts";
+import secretChatsContent from "./secret_chats_content.ts";
 
 import CodeBlockWriter from "https://jsr.io/@david/code-block-writer/13.0.1/mod.ts";
 
@@ -15,6 +16,8 @@ const apiContent = Deno.readTextFileSync(
 
 const layer = Number(apiContent.match(/\/\/ LAYER ([0-9]+)/)?.[1]);
 
+const { constructors: secretChatsConstructors, functions: secretChatsFunctions } = parse(secretChatsContent);
+
 const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
 const {
   constructors: apiConstructors,
@@ -22,8 +25,10 @@ const {
 } = parse(apiContent);
 
 const mtproto = Deno.args.includes("--mtproto");
-const constructors = mtproto ? mtProtoConstructors : apiConstructors;
-const functions = mtproto ? mtProtoFunctions : apiFunctions;
+const e2e = Deno.args.includes("--secret-chats");
+const constructors = e2e ? secretChatsConstructors : mtproto ? mtProtoConstructors : apiConstructors;
+const functions = e2e ? secretChatsFunctions : mtproto ? mtProtoFunctions : apiFunctions;
+const isTelegram = !e2e && !mtproto;
 
 const writer = new CodeBlockWriter({ indentNumberOfSpaces: 2 });
 
@@ -72,7 +77,7 @@ for (const constructor of constructors) {
 
   const w = new CodeBlockWriter({ indentNumberOfSpaces: 2 }).write(
     `
-    /** https://core.telegram.org/constructor/${constructor.predicate} */
+    ${isTelegram ? "/** https://core.telegram.org/constructor/${constructor.predicate} */" : ""}
     export interface ${type}`,
   );
   w.block(() => {
@@ -102,7 +107,7 @@ for (const function_ of functions) {
 
   const w = new CodeBlockWriter().write(
     `
-    /** https://core.telegram.org/method/${function_.func} */
+    ${isTelegram ? "/** https://core.telegram.org/method/${function_.func} */" : ""}
     export interface ${type}${isGeneric ? "<T>" : ""}`,
   );
   if (isGeneric) genericFunctions.push(type);
@@ -131,17 +136,19 @@ writer.write("export interface Types").block(() => {
   }
 }).blankLine();
 
-writer.write("export interface Functions<T = Function>").block(() => {
-  for (const function_ of functions) {
-    if (SKIP_IDS.includes(function_.id)) {
-      continue;
+if (functions.length) {
+  writer.write("export interface Functions<T = Function>").block(() => {
+    for (const function_ of functions) {
+      if (SKIP_IDS.includes(function_.id)) {
+        continue;
+      }
+      const isGeneric = function_.params.some((v: any) => v.type == "!X");
+      writer.writeLine(
+        `"${function_.func}": ${revampType(function_.func)}${isGeneric ? "<T>" : ""};`,
+      );
     }
-    const isGeneric = function_.params.some((v: any) => v.type == "!X");
-    writer.writeLine(
-      `"${function_.func}": ${revampType(function_.func)}${isGeneric ? "<T>" : ""};`,
-    );
-  }
-}).blankLine();
+  }).blankLine();
+}
 
 writer.write("export interface Enums").block(() => {
   for (const [parent] of Object.entries(parentToChildrenRec)) {
@@ -151,9 +158,11 @@ writer.write("export interface Enums").block(() => {
 
 writer.writeLine("export type AnyType = Types[keyof Types];").blankLine();
 
-writer.writeLine(
-  "export type AnyFunction<T = Function> = Functions<T>[keyof Functions<T>];",
-).blankLine();
+if (functions.length) {
+  writer.writeLine(
+    "export type AnyFunction<T = Function> = Functions<T>[keyof Functions<T>];",
+  ).blankLine();
+}
 
 if (genericFunctions.length) {
   writer.writeLine(
@@ -162,11 +171,11 @@ if (genericFunctions.length) {
 }
 
 writer.writeLine(
-  "export type AnyObject<T = Function> = AnyType | AnyFunction<T>;",
+  functions.length ? "export type AnyObject<T = Function> = AnyType | AnyFunction<T>;" : "export type AnyObject = AnyType;",
 ).blankLine();
 
 for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-  const alias = `/** https://core.telegram.org/type/${parent} */
+  const alias = `${isTelegram ? "/** https://core.telegram.org/type/${parent} */" : ""}
 export type ${revampType(parent)} = ${children.map(revampType).join(" | ")};`;
 
   writer.writeLine(alias);
@@ -235,12 +244,12 @@ writer.write("export const schema = Object.freeze({").indent(() => {
   .writeLine("}) as unknown as Schema;")
   .blankLine();
 
-if (!mtproto) {
+if (isTelegram) {
   writer.writeLine(`export const LAYER = ${layer};`)
     .blankLine();
 }
 
 Deno.writeTextFileSync(
-  mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts",
+  e2e ? "./tl/1_secret_chats_api.ts" : mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts",
   writer.toString().trim() + "\n",
 );
