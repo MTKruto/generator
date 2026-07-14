@@ -110,7 +110,7 @@ for (const function_ of functions) {
 
   const w = new CodeBlockWriter().write(
     `
-    ${isTelegram ? "/** https://core.telegram.org/method/${function_.func} */" : ""}
+    ${isTelegram ? `/** https://core.telegram.org/method/${function_.func} */` : ""}
     export interface ${type}${isGeneric ? "<T>" : ""}`,
   );
   if (isGeneric) genericFunctions.push(type);
