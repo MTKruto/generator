@@ -178,7 +178,7 @@ writer.writeLine(
 ).blankLine();
 
 for (const [parent, children] of Object.entries(parentToChildrenRec)) {
-  const alias = `${isTelegram ? "/** https://core.telegram.org/type/${parent} */" : ""}
+  const alias = `${isTelegram ? `/** https://core.telegram.org/type/${parent} */` : ""}
 export type ${revampType(parent)} = ${children.map(revampType).join(" | ")};`;
 
   writer.writeLine(alias);
