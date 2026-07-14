@@ -16,7 +16,10 @@ const apiContent = Deno.readTextFileSync(
 
 const layer = Number(apiContent.match(/\/\/ LAYER ([0-9]+)/)?.[1]);
 
-const { constructors: secretChatsConstructors, functions: secretChatsFunctions } = parse(secretChatsContent);
+const {
+  constructors: secretChatsConstructors,
+  functions: secretChatsFunctions,
+} = parse(secretChatsContent);
 
 const { constructors: mtProtoConstructors, functions: mtProtoFunctions } = parse(mtProtoContent);
 const {
@@ -77,7 +80,7 @@ for (const constructor of constructors) {
 
   const w = new CodeBlockWriter({ indentNumberOfSpaces: 2 }).write(
     `
-    ${isTelegram ? "/** https://core.telegram.org/constructor/${constructor.predicate} */" : ""}
+    ${isTelegram ? `/** https://core.telegram.org/constructor/${constructor.predicate} */` : ""}
     export interface ${type}`,
   );
   w.block(() => {
