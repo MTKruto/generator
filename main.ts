@@ -29,6 +29,8 @@ const {
 
 const mtproto = Deno.args.includes("--mtproto");
 const e2e = Deno.args.includes("--secret-chats");
+const outputIndex = Deno.args.indexOf("--output");
+const outputFile = outputIndex !== -1 && Deno.args[outputIndex + 1] ? Deno.args[outputIndex + 1] : e2e ? "./tl/1_secret_chats_api.ts" : mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts";
 const constructors = e2e ? secretChatsConstructors : mtproto ? mtProtoConstructors : apiConstructors;
 const functions = e2e ? secretChatsFunctions : mtproto ? mtProtoFunctions : apiFunctions;
 const isTelegram = !e2e && !mtproto;
@@ -253,6 +255,6 @@ if (isTelegram) {
 }
 
 Deno.writeTextFileSync(
-  e2e ? "./tl/1_secret_chats_api.ts" : mtproto ? "./tl/1_mtproto_api.ts" : "./tl/1_telegram_api.ts",
+  outputFile,
   writer.toString().trim() + "\n",
 );
