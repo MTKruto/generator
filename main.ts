@@ -10,8 +10,9 @@ import CodeBlockWriter from "https://jsr.io/@david/code-block-writer/13.0.1/mod.
 
 const SKIP_IDS = [0x1CB5C415, 0xBC799737, 0x997275B5];
 
+const apiIndex = Deno.args.indexOf("--api");
 const apiContent = Deno.readTextFileSync(
-  join(import.meta.dirname!, "telegram_api.tl"),
+  apiIndex !== -1 && Deno.args[apiIndex + 1] ? Deno.args[apiIndex + 1] : join(import.meta.dirname!, "telegram_api.tl"),
 );
 
 const layer = Number(apiContent.match(/\/\/ LAYER ([0-9]+)/)?.[1]);
